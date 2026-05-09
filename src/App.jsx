@@ -5,9 +5,11 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp
+  getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query,
+  orderBy, serverTimestamp, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// ── Firebase ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAQD4FUruRm5WXkv9uHZn_RamMmZoKmP3c",
   authDomain: "momentz-a54c7.firebaseapp.com",
@@ -20,28 +22,26 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
+// ── Cloudinary ─────────────────────────────────────────────────────────────
 const CLD_CLOUD = "drt7raxhw";
 const CLD_PRESET = "ml_default";
 const CLD_URL = `https://api.cloudinary.com/v1_1/${CLD_CLOUD}/video/upload`;
 
+// ── Owner email — only this account can send invites ──────────────────────
+const OWNER_EMAIL = "yolibaby14@gmail.com"; // change to your actual email
+
+// ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
-  bg: "#f7f5fb",
-  bgCard: "#ffffff",
-  bgInput: "#f4f1f9",
-  border: "#e8e2f4",
-  accent: "#9b8ab4",
-  accentLight: "#d4c8e8",
-  accentDark: "#6b5a8e",
-  text: "#1e1428",
-  textMid: "#7a6e8a",
-  textLight: "#b8a8cc",
-  danger: "#c4637a",
-  dangerLight: "#f9eef1",
-  rec: "#e05b73",
+  bg: "#f7f5fb", bgCard: "#ffffff", bgInput: "#f4f1f9",
+  border: "#e8e2f4", accent: "#9b8ab4", accentLight: "#d4c8e8",
+  accentDark: "#6b5a8e", text: "#1e1428", textMid: "#7a6e8a",
+  textLight: "#b8a8cc", danger: "#c4637a", dangerLight: "#f9eef1",
+  rec: "#e05b73", line: "#ede8f5",
 };
 
 const DEFAULT_MOODS = ["✨ hopeful","💭 reflective","🌊 overwhelmed","🔥 energized","🌿 peaceful","🌧 heavy","🎉 joyful","😶 numb"];
 
+// ── Helpers ────────────────────────────────────────────────────────────────
 function fmtDate(ts) {
   if (!ts) return "";
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
@@ -68,7 +68,11 @@ function friendlyError(code) {
   };
   return map[code] || "Something went wrong. Please try again.";
 }
+function generateCode() {
+  return Math.random().toString(36).substring(2, 10).toUpperCase();
+}
 
+// ── Shared UI ──────────────────────────────────────────────────────────────
 const Spinner = ({ size = 22, color = C.accent }) => (
   <div style={{ width: size, height: size, border: `2px solid ${C.accentLight}`, borderTop: `2px solid ${color}`, borderRadius: "50%", animation: "spin 0.75s linear infinite", flexShrink: 0 }} />
 );
@@ -76,7 +80,7 @@ const Spinner = ({ size = 22, color = C.accent }) => (
 function MoodPicker({ value, onChange, customMoods, onAddCustomMood }) {
   const [adding, setAdding] = useState(false);
   const [newMood, setNewMood] = useState("");
-  const allMoods = [...DEFAULT_MOODS, ...customMoods];
+  const allMoods = [...DEFAULT_MOODS, ...(customMoods || [])];
 
   const handleAdd = () => {
     if (newMood.trim()) {
@@ -95,8 +99,8 @@ function MoodPicker({ value, onChange, customMoods, onAddCustomMood }) {
             background: value === m ? C.accentDark : C.bgInput,
             border: `1px solid ${value === m ? C.accentDark : C.border}`,
             color: value === m ? "#fff" : C.textMid,
-            borderRadius: 20, padding: "5px 11px", fontSize: 11, cursor: "pointer",
-            fontFamily: "inherit", transition: "all 0.15s",
+            borderRadius: 20, padding: "5px 11px", fontSize: 11,
+            cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
           }}>{m}</button>
         ))}
         {adding ? (
@@ -118,13 +122,22 @@ function MoodPicker({ value, onChange, customMoods, onAddCustomMood }) {
   );
 }
 
+// ── Auth Screen ────────────────────────────────────────────────────────────
 function AuthScreen() {
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // login | signup | reset
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resetSent, setResetSent] = useState(false);
+
+  // Check for invite code in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("invite");
+    if (code) { setInviteCode(code.toUpperCase()); setMode("signup"); }
+  }, []);
 
   const inputStyle = {
     width: "100%", background: C.bgInput, border: `1px solid ${C.border}`,
@@ -138,14 +151,31 @@ function AuthScreen() {
     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
   };
 
-  const emailAuth = async () => {
+  const handleSignup = async () => {
     setError(""); setLoading(true);
     try {
-      if (mode === "signup") await createUserWithEmailAndPassword(auth, email, password);
-      else await signInWithEmailAndPassword(auth, email, password);
+      // Validate invite code
+      const codeRef = doc(db, "invites", inviteCode);
+      const codeSnap = await getDoc(codeRef);
+      if (!codeSnap.exists()) { setError("Invalid invite code."); setLoading(false); return; }
+      if (codeSnap.data().used) { setError("This invite code has already been used."); setLoading(false); return; }
+
+      // Create account
+      await createUserWithEmailAndPassword(auth, email, password);
+
+      // Mark invite as used
+      await setDoc(codeRef, { ...codeSnap.data(), used: true, usedBy: email, usedAt: new Date().toISOString() });
     } catch (e) { setError(friendlyError(e.code)); }
     setLoading(false);
   };
+
+  const emailAuth = async () => {
+    setError(""); setLoading(true);
+    try { await signInWithEmailAndPassword(auth, email, password); }
+    catch (e) { setError(friendlyError(e.code)); }
+    setLoading(false);
+  };
+
   const resetPassword = async () => {
     setError(""); setLoading(true);
     try { await sendPasswordResetEmail(auth, email); setResetSent(true); }
@@ -163,8 +193,9 @@ function AuthScreen() {
           <h1 style={{ margin: 0, fontSize: 36, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em" }}>momentz</h1>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: C.textLight, fontStyle: "italic", fontFamily: "Georgia, serif" }}>your story, your way</p>
         </div>
+
         <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, boxShadow: "0 4px 24px rgba(155,138,180,0.08)" }}>
-          {mode !== "reset" ? (
+          {mode === "login" && (
             <>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>email</div>
@@ -176,36 +207,63 @@ function AuthScreen() {
               </div>
               {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center", background: C.dangerLight, padding: "8px 12px", borderRadius: 8 }}>{error}</div>}
               <button onClick={emailAuth} disabled={loading} style={btnPrimary}>
-                {loading ? <Spinner size={16} color="#fff" /> : (mode === "login" ? "sign in" : "create account")}
+                {loading ? <Spinner size={16} color="#fff" /> : "sign in"}
               </button>
               <div style={{ marginTop: 16, display: "flex", justifyContent: "center", gap: 20 }}>
-                <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                  {mode === "login" ? "create account" : "back to sign in"}
-                </button>
-                {mode === "login" && <button onClick={() => { setMode("reset"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>forgot password</button>}
+                <button onClick={() => { setMode("signup"); setError(""); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>have an invite?</button>
+                <button onClick={() => { setMode("reset"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>forgot password</button>
               </div>
             </>
-          ) : resetSent ? (
-            <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>📬</div>
-              <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16 }}>reset link sent to {email}</div>
-              <button onClick={() => { setMode("login"); setResetSent(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
-            </div>
-          ) : (
+          )}
+
+          {mode === "signup" && (
             <>
-              <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14, textAlign: "center" }}>enter your email to receive a reset link</div>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ ...inputStyle, marginBottom: 12 }} />
-              {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center" }}>{error}</div>}
-              <button onClick={resetPassword} disabled={loading} style={btnPrimary}>
-                {loading ? <Spinner size={16} color="#fff" /> : "send reset link"}
+              <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16, textAlign: "center" }}>enter your invite code to create an account</div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>invite code</div>
+                <input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" style={{ ...inputStyle, letterSpacing: "0.2em", fontWeight: 500 }} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>email</div>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={inputStyle} />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>password</div>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignup()} placeholder="••••••••" style={inputStyle} />
+              </div>
+              {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center", background: C.dangerLight, padding: "8px 12px", borderRadius: 8 }}>{error}</div>}
+              <button onClick={handleSignup} disabled={loading} style={btnPrimary}>
+                {loading ? <Spinner size={16} color="#fff" /> : "create account"}
               </button>
               <div style={{ marginTop: 14, textAlign: "center" }}>
                 <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
               </div>
             </>
           )}
+
+          {mode === "reset" && (
+            resetSent ? (
+              <div style={{ textAlign: "center", padding: "16px 0" }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>📬</div>
+                <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16 }}>reset link sent to {email}</div>
+                <button onClick={() => { setMode("login"); setResetSent(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14, textAlign: "center" }}>enter your email to receive a reset link</div>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ ...inputStyle, marginBottom: 12 }} />
+                {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center" }}>{error}</div>}
+                <button onClick={resetPassword} disabled={loading} style={btnPrimary}>
+                  {loading ? <Spinner size={16} color="#fff" /> : "send reset link"}
+                </button>
+                <div style={{ marginTop: 14, textAlign: "center" }}>
+                  <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
+                </div>
+              </>
+            )
+          )}
         </div>
-        <div style={{ marginTop: 20, textAlign: "center", fontSize: 10, color: C.textLight, letterSpacing: "0.1em", textTransform: "uppercase" }}>private · just for you</div>
+        <div style={{ marginTop: 20, textAlign: "center", fontSize: 10, color: C.textLight, letterSpacing: "0.1em", textTransform: "uppercase" }}>private · invite only</div>
       </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
@@ -218,15 +276,182 @@ function AuthScreen() {
   );
 }
 
+// ── Writing Journal Entry Editor ───────────────────────────────────────────
+function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [mood, setMood] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!body.trim()) return;
+    setSaving(true);
+    try {
+      const entry = {
+        type: "writing",
+        createdAt: serverTimestamp(),
+        title: title.trim(),
+        body: body.trim(),
+        mood,
+        wordCount: body.trim().split(/\s+/).filter(Boolean).length,
+      };
+      const ref = await addDoc(collection(db, "users", user.uid, "writings"), entry);
+      onSaved({ id: ref.id, ...entry, createdAt: { toDate: () => new Date() } });
+    } catch (e) { alert("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  const lineHeight = 32;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
+      {/* Top bar */}
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
+        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: "0.15em", textTransform: "uppercase" }}>{fmtDate({ toDate: () => new Date() })}</div>
+        <button onClick={save} disabled={saving || !body.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: body.trim() ? 1 : 0.4 }}>
+          {saving ? <Spinner size={14} color="#fff" /> : "save"}
+        </button>
+      </div>
+
+      {/* Mood */}
+      <div style={{ padding: "14px 20px 10px", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
+        <MoodPicker value={mood} onChange={setMood} customMoods={customMoods} onAddCustomMood={onAddCustomMood} />
+      </div>
+
+      {/* Writing area */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "56px" }}>
+        {/* Title */}
+        <input
+          type="text" value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="title (optional)"
+          style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, padding: "20px 0 8px", lineHeight: "1.3", boxSizing: "border-box" }}
+        />
+        {/* Body */}
+        <textarea
+          value={body} onChange={e => setBody(e.target.value)}
+          placeholder="write anything..."
+          autoFocus
+          style={{
+            width: "100%", background: "none", border: "none", outline: "none", resize: "none",
+            fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`,
+            minHeight: "60vh", boxSizing: "border-box", padding: "4px 0",
+          }}
+        />
+      </div>
+
+      {/* Word count */}
+      <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ fontSize: 11, color: C.textLight }}>{body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0} words</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Writing Entry Viewer ───────────────────────────────────────────────────
+function WritingViewer({ entry, onBack, onDelete }) {
+  const lineHeight = 32;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>← back</button>
+        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: "0.1em" }}>{fmtDate(entry.createdAt)} · {fmtTime(entry.createdAt)}</div>
+        <button onClick={() => onDelete(entry)} style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "80px" }}>
+        {entry.mood && (
+          <div style={{ paddingTop: 16, marginBottom: 4 }}>
+            <div style={{ display: "inline-block", background: C.accentLight, border: `1px solid ${C.border}`, color: C.accentDark, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{entry.mood}</div>
+          </div>
+        )}
+        {entry.title && (
+          <h2 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, lineHeight: 1.3 }}>{entry.title}</h2>
+        )}
+        <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, whiteSpace: "pre-wrap", paddingTop: 4 }}>{entry.body}</div>
+      </div>
+
+      <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ fontSize: 11, color: C.textLight }}>{entry.wordCount || 0} words</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Invite Panel (owner only) ──────────────────────────────────────────────
+function InvitePanel({ onClose }) {
+  const [generating, setGenerating] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const generateInvite = async () => {
+    setGenerating(true);
+    const code = generateCode();
+    try {
+      await setDoc(doc(db, "invites", code), {
+        code, used: false,
+        createdAt: new Date().toISOString(),
+      });
+      const link = `${window.location.origin}?invite=${code}`;
+      setGeneratedLink(link);
+    } catch (e) { alert("Failed to generate invite: " + e.message); }
+    setGenerating(false);
+  };
+
+  const copy = () => {
+    navigator.clipboard.writeText(generatedLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
+      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 340, width: "100%", animation: "popIn 0.22s ease" }}>
+        <div style={{ fontSize: 18, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>invite someone</div>
+        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>
+          Generate a one-time invite link. Once someone uses it to sign up, it expires automatically.
+        </div>
+
+        {!generatedLink ? (
+          <button onClick={generateInvite} disabled={generating} style={{ width: "100%", padding: "12px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {generating ? <Spinner size={16} color="#fff" /> : "generate invite link"}
+          </button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 11, color: C.textMid, wordBreak: "break-all", lineHeight: 1.5 }}>{generatedLink}</div>
+            <button onClick={copy} style={{ width: "100%", padding: "12px", borderRadius: 12, background: copied ? "#4caf7d" : C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s" }}>
+              {copied ? "✓ copied!" : "copy link"}
+            </button>
+            <button onClick={generateInvite} disabled={generating} style={{ width: "100%", padding: "10px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              generate another
+            </button>
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(undefined);
+  const [tab, setTab] = useState("video"); // video | writing
   const [entries, setEntries] = useState([]);
+  const [writings, setWritings] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
+  const [loadingWritings, setLoadingWritings] = useState(false);
   const [customMoods, setCustomMoods] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mz_custom_moods") || "[]"); } catch { return []; }
   });
-  const [view, setView] = useState("grid");
+
+  const [view, setView] = useState("grid"); // grid | record | swipe | writeNew | writeView
   const [swipeIndex, setSwipeIndex] = useState(0);
+  const [selectedWriting, setSelectedWriting] = useState(null);
+
   const [stream, setStream] = useState(null);
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState(null);
@@ -240,6 +465,7 @@ export default function App() {
   const [filterMood, setFilterMood] = useState("all");
   const [showDelete, setShowDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
 
   const videoRef = useRef(null);
   const mrRef = useRef(null);
@@ -253,7 +479,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) { setEntries([]); return; }
+    if (!user) { setEntries([]); setWritings([]); return; }
     (async () => {
       setLoadingEntries(true);
       try {
@@ -262,6 +488,14 @@ export default function App() {
         setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) { console.error(e); }
       setLoadingEntries(false);
+
+      setLoadingWritings(true);
+      try {
+        const q2 = query(collection(db, "users", user.uid, "writings"), orderBy("createdAt", "desc"));
+        const snap2 = await getDocs(q2);
+        setWritings(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) { console.error(e); }
+      setLoadingWritings(false);
     })();
   }, [user]);
 
@@ -334,7 +568,7 @@ export default function App() {
     vid.onerror = reject;
   });
 
-  const saveEntry = async () => {
+  const saveVideo = async () => {
     if (!previewBlob || !user) return;
     setUploading(true); setUploadProgress(0);
     try {
@@ -364,6 +598,17 @@ export default function App() {
     setDeleting(false);
   };
 
+  const deleteWriting = async (entry) => {
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "writings", entry.id));
+      setWritings(prev => prev.filter(e => e.id !== entry.id));
+      setShowDelete(null);
+      if (view === "writeView") { setView("grid"); setSelectedWriting(null); }
+    } catch (e) { alert("Delete failed: " + e.message); }
+    setDeleting(false);
+  };
+
   const discard = () => { stopStream(); setPreviewBlob(null); setView("grid"); };
 
   const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
@@ -379,6 +624,7 @@ export default function App() {
 
   const filteredEntries = filterMood === "all" ? entries : entries.filter(e => e.mood === filterMood);
   const usedMoods = [...new Set(entries.map(e => e.mood).filter(Boolean))];
+  const isOwner = user?.email === OWNER_EMAIL;
 
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -393,89 +639,175 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
-      {/* ── GRID ── */}
-      {view === "grid" && (
+      {/* ── Writing views (overlay) ── */}
+      {view === "writeNew" && (
+        <WritingEditor
+          user={user}
+          customMoods={customMoods}
+          onAddCustomMood={m => setCustomMoods(p => [...p, m])}
+          onSaved={(entry) => { setWritings(prev => [entry, ...prev]); setView("grid"); }}
+          onCancel={() => setView("grid")}
+        />
+      )}
+      {view === "writeView" && selectedWriting && (
+        <WritingViewer
+          entry={selectedWriting}
+          onBack={() => { setView("grid"); setSelectedWriting(null); }}
+          onDelete={(e) => setShowDelete({ ...e, type: "writing" })}
+        />
+      )}
+
+      {/* ── MAIN GRID ── */}
+      {(view === "grid") && (
         <div style={{ maxWidth: 480, margin: "0 auto", height: "100vh", display: "flex", flexDirection: "column" }}>
 
           {/* Header */}
-          <div style={{ padding: "28px 20px 12px", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ padding: "28px 20px 0", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
             <div>
               <div style={{ fontSize: 9, letterSpacing: "0.3em", color: C.textLight, textTransform: "uppercase", marginBottom: 3 }}>private journal</div>
               <h1 style={{ margin: 0, fontSize: 30, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em", lineHeight: 1 }}>momentz</h1>
-              <div style={{ marginTop: 4, fontSize: 11, color: C.textLight }}>{entries.length} {entries.length === 1 ? "memory" : "memories"}</div>
             </div>
-            <button onClick={() => signOut(auth)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textLight, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>sign out</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {isOwner && (
+                <button onClick={() => setShowInvite(true)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.accent, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>+ invite</button>
+              )}
+              <button onClick={() => signOut(auth)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textLight, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>sign out</button>
+            </div>
           </div>
 
-          {/* Mood filter */}
-          {usedMoods.length > 0 && (
-            <div style={{ padding: "0 20px 10px", display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
-              {["all", ...usedMoods].map(m => (
-                <button key={m} onClick={() => setFilterMood(m)} style={{
-                  background: filterMood === m ? C.accentDark : "transparent",
-                  border: `1px solid ${filterMood === m ? C.accentDark : C.border}`,
-                  color: filterMood === m ? "#fff" : C.textMid,
-                  borderRadius: 20, padding: "5px 12px", fontSize: 10, cursor: "pointer",
-                  whiteSpace: "nowrap", transition: "all 0.18s", fontFamily: "inherit",
-                }}>{m === "all" ? "all moods" : m}</button>
-              ))}
-            </div>
-          )}
-
-          {camError && <div style={{ margin: "0 20px 10px", padding: 12, background: C.dangerLight, border: `1px solid ${C.danger}22`, borderRadius: 10, fontSize: 12, color: C.danger, flexShrink: 0 }}>{camError}</div>}
-
-          {/* Scrollable grid */}
-          <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
-            {loadingEntries ? (
-              <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
-            ) : filteredEntries.length === 0 ? (
-              <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                <div style={{ width: 60, height: 60, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: C.accent }} />
-                </div>
-                <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
-                  {entries.length === 0 ? "your first moment is waiting" : "no entries for this mood"}
-                </div>
-                <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the button below to begin</div>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, padding: "0 2px" }}>
-                {filteredEntries.map((entry, i) => (
-                  <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }}
-                    style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.accentLight, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
-                    {entry.thumbnail
-                      ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.accent }} />
-                        </div>
-                    }
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(30,20,40,0.85) 0%, transparent 55%)" }} />
-                    <div style={{ position: "absolute", bottom: 6, left: 6, right: 6 }}>
-                      {entry.mood && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.mood}</div>}
-                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{fmtDate(entry.createdAt)}</div>
-                      {entry.note && <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.note}</div>}
-                    </div>
-                    <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.7)" }}>{fmtDur(entry.duration)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Record button — always visible at bottom */}
-          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", background: `linear-gradient(to top, ${C.bg} 60%, transparent)`, pointerEvents: "none" }}>
-            <button onClick={openRecorder} style={{
-              pointerEvents: "all",
-              background: C.accentDark, border: "none", borderRadius: 50,
-              width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`,
-              transition: "transform 0.15s",
-            }}
-              onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
-              onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
+          {/* Tabs */}
+          <div style={{ padding: "16px 20px 0", display: "flex", gap: 0, flexShrink: 0 }}>
+            <button onClick={() => setTab("video")} style={{
+              flex: 1, padding: "10px", background: "none", border: "none",
+              borderBottom: `2px solid ${tab === "video" ? C.accentDark : C.border}`,
+              color: tab === "video" ? C.accentDark : C.textLight,
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+              fontWeight: tab === "video" ? 500 : 400, transition: "all 0.15s",
+            }}>
+              video journal
+            </button>
+            <button onClick={() => setTab("writing")} style={{
+              flex: 1, padding: "10px", background: "none", border: "none",
+              borderBottom: `2px solid ${tab === "writing" ? C.accentDark : C.border}`,
+              color: tab === "writing" ? C.accentDark : C.textLight,
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+              fontWeight: tab === "writing" ? 500 : 400, transition: "all 0.15s",
+            }}>
+              writing journal
             </button>
           </div>
+
+          {/* ── VIDEO TAB ── */}
+          {tab === "video" && (
+            <>
+              {usedMoods.length > 0 && (
+                <div style={{ padding: "10px 20px 8px", display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
+                  {["all", ...usedMoods].map(m => (
+                    <button key={m} onClick={() => setFilterMood(m)} style={{
+                      background: filterMood === m ? C.accentDark : "transparent",
+                      border: `1px solid ${filterMood === m ? C.accentDark : C.border}`,
+                      color: filterMood === m ? "#fff" : C.textMid,
+                      borderRadius: 20, padding: "5px 12px", fontSize: 10, cursor: "pointer",
+                      whiteSpace: "nowrap", transition: "all 0.18s", fontFamily: "inherit",
+                    }}>{m === "all" ? "all moods" : m}</button>
+                  ))}
+                </div>
+              )}
+
+              {camError && <div style={{ margin: "0 20px 10px", padding: 12, background: C.dangerLight, border: `1px solid ${C.danger}22`, borderRadius: 10, fontSize: 12, color: C.danger, flexShrink: 0 }}>{camError}</div>}
+
+              <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
+                {loadingEntries ? (
+                  <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
+                ) : filteredEntries.length === 0 ? (
+                  <div style={{ padding: "60px 20px", textAlign: "center" }}>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.accent }} />
+                    </div>
+                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
+                      {entries.length === 0 ? "your first moment is waiting" : "no entries for this mood"}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the button below to begin</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, padding: "4px 2px" }}>
+                    {filteredEntries.map((entry, i) => (
+                      <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }}
+                        style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.accentLight, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
+                        {entry.thumbnail
+                          ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.accent }} />
+                            </div>
+                        }
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(30,20,40,0.85) 0%, transparent 55%)" }} />
+                        <div style={{ position: "absolute", bottom: 6, left: 6, right: 6 }}>
+                          {entry.mood && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.mood}</div>}
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{fmtDate(entry.createdAt)}</div>
+                          {entry.note && <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.note}</div>}
+                        </div>
+                        <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.7)" }}>{fmtDur(entry.duration)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Record FAB */}
+              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", background: `linear-gradient(to top, ${C.bg} 60%, transparent)`, pointerEvents: "none" }}>
+                <button onClick={openRecorder} style={{ pointerEvents: "all", background: C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, transition: "transform 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
+                  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ── WRITING TAB ── */}
+          {tab === "writing" && (
+            <>
+              <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
+                {loadingWritings ? (
+                  <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
+                ) : writings.length === 0 ? (
+                  <div style={{ padding: "60px 20px", textAlign: "center" }}>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✍️</div>
+                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>your first entry is waiting</div>
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the button below to start writing</div>
+                  </div>
+                ) : (
+                  <div style={{ padding: "8px 16px" }}>
+                    {writings.map((w, i) => (
+                      <div key={w.id} onClick={() => { setSelectedWriting(w); setView("writeView"); }}
+                        style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", animation: `fadeUp 0.3s ease ${i * 0.02}s both`, transition: "box-shadow 0.15s" }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 16px rgba(155,138,180,0.12)`}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                          <div>
+                            {w.title && <div style={{ fontSize: 15, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, marginBottom: 3 }}>{w.title}</div>}
+                            <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.05em" }}>{fmtDate(w.createdAt)}</div>
+                          </div>
+                          {w.mood && <div style={{ fontSize: 10, color: C.accentDark, background: C.accentLight, borderRadius: 20, padding: "3px 10px", whiteSpace: "nowrap", marginLeft: 8 }}>{w.mood}</div>}
+                        </div>
+                        <div style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{w.body}</div>
+                        <div style={{ marginTop: 8, fontSize: 10, color: C.textLight }}>{w.wordCount || 0} words</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Write FAB */}
+              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", background: `linear-gradient(to top, ${C.bg} 60%, transparent)`, pointerEvents: "none" }}>
+                <button onClick={() => setView("writeNew")} style={{ pointerEvents: "all", background: C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, fontSize: 24, color: "#fff", transition: "transform 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
+                  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+                  ✍
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -484,11 +816,7 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden" }}
           onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           {filteredEntries.map((entry, i) => (
-            <div key={entry.id} style={{
-              position: "absolute", inset: 0,
-              transform: `translateY(${(i - swipeIndex) * 100}%)`,
-              transition: "transform 0.35s cubic-bezier(0.4,0,0.2,1)",
-            }}>
+            <div key={entry.id} style={{ position: "absolute", inset: 0, transform: `translateY(${(i - swipeIndex) * 100}%)`, transition: "transform 0.35s cubic-bezier(0.4,0,0.2,1)" }}>
               <video src={entry.videoURL} playsInline autoPlay={i === swipeIndex} loop
                 style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(20,10,30,0.9) 0%, transparent 50%)" }} />
@@ -526,8 +854,6 @@ export default function App() {
               </div>
             )}
           </div>
-
-          {/* Camera takes remaining space above panel */}
           <div style={{ flex: 1, overflow: "hidden" }}>
             {!previewBlob
               ? <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -537,8 +863,6 @@ export default function App() {
               <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 100, fontFamily: "Georgia, serif", color: "rgba(255,255,255,0.9)", animation: "popIn 0.7s ease" }}>{countdown}</div>
             )}
           </div>
-
-          {/* Controls panel — fixed height, no scroll */}
           <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", padding: "16px 20px 32px", flexShrink: 0 }}>
             {uploading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0" }}>
@@ -570,7 +894,7 @@ export default function App() {
                   style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px", color: C.text, fontSize: 12, fontFamily: "inherit", resize: "none", outline: "none" }} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => setPreviewBlob(null)} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>re-record</button>
-                  <button onClick={saveEntry} style={{ flex: 2, padding: "11px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>save to momentz</button>
+                  <button onClick={saveVideo} style={{ flex: 2, padding: "11px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>save to momentz</button>
                 </div>
               </div>
             )}
@@ -583,11 +907,11 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
           <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.dangerLight, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🗑</div>
-            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this moment?</div>
+            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this {showDelete.type === "writing" ? "entry" : "moment"}?</div>
             <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This will be removed from your journal forever.</div>
             <div style={{ display: "flex", gap: 9 }}>
               <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>keep it</button>
-              <button onClick={() => deleteEntry(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => showDelete.type === "writing" ? deleteWriting(showDelete) : deleteEntry(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {deleting ? <Spinner size={15} color={C.danger} /> : "delete"}
               </button>
             </div>
@@ -595,11 +919,15 @@ export default function App() {
         </div>
       )}
 
+      {/* ── INVITE PANEL ── */}
+      {showInvite && <InvitePanel onClose={() => setShowInvite(false)} />}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { display: none; }
         textarea::placeholder { color: ${C.textLight}; }
+        input::placeholder { color: ${C.textLight}; }
         video { outline: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
