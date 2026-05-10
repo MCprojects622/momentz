@@ -24,7 +24,7 @@ const db = getFirestore(firebaseApp);
 const CLD_CLOUD = "drt7raxhw";
 const CLD_PRESET = "ml_default";
 const CLD_URL = `https://api.cloudinary.com/v1_1/${CLD_CLOUD}/video/upload`;
-const OWNER_EMAIL = "yolandamcleod@gmail.com";
+const OWNER_EMAIL = "yolibaby14@gmail.com";
 
 const C = {
   bg: "#f7f5fb", bgCard: "#ffffff", bgInput: "#f4f1f9",
