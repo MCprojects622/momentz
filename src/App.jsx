@@ -607,12 +607,19 @@ export default function App() {
     setDeleting(false);
   };
 
+  const uploadXHRRef = useRef(null);
+
   const discard = () => {
+    if (uploadXHRRef.current) {
+      uploadXHRRef.current.abort();
+      uploadXHRRef.current = null;
+    }
     stopStream();
     if (previewURL) URL.revokeObjectURL(previewURL);
-    setPreviewBlob(null); setPreviewURL(null); setView("grid");
+    setPreviewBlob(null); setPreviewURL(null);
+    setUploading(false); setUploadProgress(0);
+    setView("grid");
   };
-
   const handleTouchStart = (e) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
