@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://apzwuiqyxnfzbuooerhb.supabase.co";
@@ -111,15 +111,11 @@ function AuthScreen() {
   const handleSignup = async () => {
     setError(""); setLoading(true);
     try {
-      // Validate invite code
       const { data: invite, error: inviteErr } = await sb.from("invites").select("*").eq("code", inviteCode).single();
       if (inviteErr || !invite) { setError("Invalid invite code."); setLoading(false); return; }
       if (invite.used) { setError("This invite code has already been used."); setLoading(false); return; }
-
       const { error: signupErr } = await sb.auth.signUp({ email, password });
       if (signupErr) { setError(signupErr.message); setLoading(false); return; }
-
-      // Mark invite used
       await sb.from("invites").update({ used: true, used_by: email, used_at: new Date().toISOString() }).eq("code", inviteCode);
     } catch (e) { setError(e.message); }
     setLoading(false);
@@ -352,7 +348,6 @@ function SwipeVideo({ entry, isActive }) {
   const videoRef = useRef(null);
   const [videoUrl, setVideoUrl] = useState(null);
 
-  // Get signed URL from Supabase
   useEffect(() => {
     if (!entry.video_path) return;
     sb.storage.from("videos").createSignedUrl(entry.video_path, 3600)
@@ -440,7 +435,7 @@ export default function App() {
   const touchStartY = useRef(null);
   const touchStartX = useRef(null);
 
-  // ── Auth listener ──
+  // ── Auth ──
   useEffect(() => {
     sb.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
     const { data: { subscription } } = sb.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
@@ -477,13 +472,12 @@ export default function App() {
 
   useEffect(() => { return () => { if (previewURL) URL.revokeObjectURL(previewURL); }; }, [previewURL]);
 
-  // ── Prevent pull-to-refresh on swipe view ──
+  // ── Prevent pull-to-refresh on Android ──
   useEffect(() => {
-    const el = swipeContainerRef.current;
-    if (!el) return;
-    const prevent = (e) => e.preventDefault();
-    el.addEventListener("touchmove", prevent, { passive: false });
-    return () => el.removeEventListener("touchmove", prevent);
+    if (view !== "swipe") return;
+    const prevent = (e) => { if (e.touches.length === 1) e.preventDefault(); };
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
   }, [view]);
 
   const stopStream = useCallback(() => {
@@ -513,8 +507,7 @@ export default function App() {
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPreviewBlob(file);
-    setPreviewURL(URL.createObjectURL(file));
+    setPreviewBlob(file); setPreviewURL(URL.createObjectURL(file));
     e.target.value = "";
   };
 
@@ -565,43 +558,28 @@ export default function App() {
     if (!previewBlob || !user) return;
     setUploading(true); setUploadProgress(0);
     try {
-      // Upload to Supabase Storage (private bucket)
       const ext = previewBlob.name?.split(".").pop() || "webm";
       const path = `${user.id}/${Date.now()}.${ext}`;
 
       const { error: uploadError } = await sb.storage.from("videos").upload(path, previewBlob, {
         cacheControl: "3600",
         upsert: false,
-        onUploadProgress: (p) => setUploadProgress(Math.round(p.loaded / p.total * 100)),
       });
       if (uploadError) throw uploadError;
-
       setUploadProgress(100);
 
-      // Generate thumbnail
       let thumbnail = null;
       try { thumbnail = await generateThumbnail(previewBlob); } catch {}
-
       const duration = uploadMode === "upload" ? await getVideoDuration(previewBlob) : elapsed;
 
-      const entry = {
-        user_id: user.id,
-        duration,
-        moods: selectedMoods,
-        note: note.trim(),
-        video_path: path,
-        thumbnail,
-        source: uploadMode,
-      };
-
+      const entry = { user_id: user.id, duration, moods: selectedMoods, note: note.trim(), video_path: path, thumbnail, source: uploadMode };
       const { data, error: dbError } = await sb.from("entries").insert(entry).select().single();
       if (dbError) throw dbError;
 
       setEntries(prev => [data, ...prev]);
       stopStream();
       if (previewURL) URL.revokeObjectURL(previewURL);
-      setPreviewBlob(null); setPreviewURL(null);
-      setView("grid");
+      setPreviewBlob(null); setPreviewURL(null); setView("grid");
     } catch (e) { alert("Save failed: " + e.message); }
     setUploading(false);
   };
@@ -635,7 +613,6 @@ export default function App() {
     setPreviewBlob(null); setPreviewURL(null); setView("grid");
   };
 
-  // ── Swipe handlers — prevent pull to refresh ──
   const handleTouchStart = (e) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
@@ -656,7 +633,6 @@ export default function App() {
   const usedMoods = [...new Set(entries.flatMap(e => e.moods || []))];
   const isOwner = user?.email === OWNER_EMAIL;
 
-  // ── Loading ──
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 24, fontFamily: "Georgia, serif", color: C.textMid }}>momentz</div>
@@ -671,7 +647,6 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileSelect} style={{ display: "none" }} />
 
-      {/* Writing overlays */}
       {view === "writeNew" && (
         <WritingEditor user={user} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])}
           onSaved={(entry) => { setWritings(prev => [entry, ...prev]); setView("grid"); }}
@@ -697,7 +672,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Tabs */}
           <div style={{ padding: "16px 20px 0", display: "flex", flexShrink: 0 }}>
             {["video", "writing"].map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "10px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? C.accentDark : C.border}`, color: tab === t ? C.accentDark : C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 500 : 400, transition: "all 0.15s" }}>
@@ -706,7 +680,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* ── VIDEO TAB ── */}
           {tab === "video" && (
             <>
               {usedMoods.length > 0 && (
@@ -758,7 +731,6 @@ export default function App() {
             </>
           )}
 
-          {/* ── WRITING TAB ── */}
           {tab === "writing" && (
             <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
               {loadingWritings ? (
@@ -823,25 +795,19 @@ export default function App() {
         </div>
       )}
 
-      {/* ── SWIPE VIEW ── */}
+      {/* ── SWIPE ── */}
       {view === "swipe" && filteredEntries.length > 0 && (
-        <div
-          ref={swipeContainerRef}
-          style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden", touchAction: "none" }}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
+        <div ref={swipeContainerRef} style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden", touchAction: "none" }}
+          onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           {filteredEntries.map((entry, i) => (
             <div key={entry.id} style={{ position: "absolute", inset: 0, transform: `translateY(${(i - swipeIndex) * 100}%)`, transition: "transform 0.38s cubic-bezier(0.4,0,0.2,1)", willChange: "transform" }}>
               <SwipeVideo entry={entry} isActive={i === swipeIndex} />
             </div>
           ))}
-
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "16px 20px", display: "flex", justifyContent: "space-between", background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)", zIndex: 10 }}>
             <button onClick={() => setView("grid")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← grid</button>
             <button onClick={() => setShowDelete(filteredEntries[swipeIndex])} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "rgba(255,255,255,0.7)", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
           </div>
-
           {filteredEntries.length > 1 && (
             <div style={{ position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, zIndex: 10 }}>
               {filteredEntries.map((_, idx) => (
@@ -849,7 +815,6 @@ export default function App() {
               ))}
             </div>
           )}
-
           <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 16, zIndex: 10 }}>
             {swipeIndex > 0 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↑ newer</div>}
             {swipeIndex < filteredEntries.length - 1 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↓ older</div>}
@@ -857,7 +822,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── RECORD VIEW ── */}
+      {/* ── RECORD ── */}
       {view === "record" && (
         <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 }}>
@@ -869,7 +834,6 @@ export default function App() {
               </div>
             )}
           </div>
-
           <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
             {uploadMode === "record" && !previewBlob && <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
             {previewBlob && previewURL && <video src={previewURL} controls playsInline style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />}
@@ -884,7 +848,6 @@ export default function App() {
               <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 100, fontFamily: "Georgia, serif", color: "rgba(255,255,255,0.9)", animation: "popIn 0.7s ease" }}>{countdown}</div>
             )}
           </div>
-
           <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", padding: "16px 20px 32px", flexShrink: 0 }}>
             {uploading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0" }}>
@@ -929,7 +892,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── DELETE CONFIRM ── */}
+      {/* ── DELETE ── */}
       {showDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
           <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
