@@ -9,7 +9,6 @@ import {
   orderBy, serverTimestamp, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ── Firebase ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAQD4FUruRm5WXkv9uHZn_RamMmZoKmP3c",
   authDomain: "momentz-a54c7.firebaseapp.com",
@@ -22,15 +21,11 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 
-// ── Cloudinary ─────────────────────────────────────────────────────────────
 const CLD_CLOUD = "drt7raxhw";
 const CLD_PRESET = "ml_default";
 const CLD_URL = `https://api.cloudinary.com/v1_1/${CLD_CLOUD}/video/upload`;
+const OWNER_EMAIL = "yolandamcleod@gmail.com";
 
-// ── Owner email — only this account can send invites ──────────────────────
-const OWNER_EMAIL = "yolibaby14@gmail.com"; // change to your actual email
-
-// ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   bg: "#f7f5fb", bgCard: "#ffffff", bgInput: "#f4f1f9",
   border: "#e8e2f4", accent: "#9b8ab4", accentLight: "#d4c8e8",
@@ -41,7 +36,6 @@ const C = {
 
 const DEFAULT_MOODS = ["✨ hopeful","💭 reflective","🌊 overwhelmed","🔥 energized","🌿 peaceful","🌧 heavy","🎉 joyful","😶 numb"];
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 function fmtDate(ts) {
   if (!ts) return "";
   const d = ts?.toDate ? ts.toDate() : new Date(ts);
@@ -53,6 +47,7 @@ function fmtTime(ts) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 function fmtDur(s) {
+  if (!s && s !== 0) return "";
   const m = Math.floor(s / 60), sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
@@ -72,33 +67,42 @@ function generateCode() {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
-// ── Shared UI ──────────────────────────────────────────────────────────────
+// ── Spinner ────────────────────────────────────────────────────────────────
 const Spinner = ({ size = 22, color = C.accent }) => (
   <div style={{ width: size, height: size, border: `2px solid ${C.accentLight}`, borderTop: `2px solid ${color}`, borderRadius: "50%", animation: "spin 0.75s linear infinite", flexShrink: 0 }} />
 );
 
-function MoodPicker({ value, onChange, customMoods, onAddCustomMood }) {
+// ── Multi-select Mood Picker ───────────────────────────────────────────────
+function MoodPicker({ value = [], onChange, customMoods = [], onAddCustomMood }) {
   const [adding, setAdding] = useState(false);
   const [newMood, setNewMood] = useState("");
-  const allMoods = [...DEFAULT_MOODS, ...(customMoods || [])];
+  const allMoods = [...DEFAULT_MOODS, ...customMoods];
+
+  const toggle = (m) => {
+    if (value.includes(m)) onChange(value.filter(x => x !== m));
+    else onChange([...value, m]);
+  };
 
   const handleAdd = () => {
-    if (newMood.trim()) {
-      onAddCustomMood(newMood.trim());
-      onChange(newMood.trim());
+    const trimmed = newMood.trim();
+    if (trimmed) {
+      onAddCustomMood(trimmed);
+      onChange([...value, trimmed]);
       setNewMood(""); setAdding(false);
     }
   };
 
   return (
     <div>
-      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: C.textLight, textTransform: "uppercase", marginBottom: 8 }}>mood</div>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: C.textLight, textTransform: "uppercase", marginBottom: 8 }}>
+        mood {value.length > 0 && <span style={{ color: C.accent }}>· {value.length} selected</span>}
+      </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {allMoods.map(m => (
-          <button key={m} onClick={() => onChange(m === value ? "" : m)} style={{
-            background: value === m ? C.accentDark : C.bgInput,
-            border: `1px solid ${value === m ? C.accentDark : C.border}`,
-            color: value === m ? "#fff" : C.textMid,
+          <button key={m} onClick={() => toggle(m)} style={{
+            background: value.includes(m) ? C.accentDark : C.bgInput,
+            border: `1px solid ${value.includes(m) ? C.accentDark : C.border}`,
+            color: value.includes(m) ? "#fff" : C.textMid,
             borderRadius: 20, padding: "5px 11px", fontSize: 11,
             cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
           }}>{m}</button>
@@ -124,7 +128,7 @@ function MoodPicker({ value, onChange, customMoods, onAddCustomMood }) {
 
 // ── Auth Screen ────────────────────────────────────────────────────────────
 function AuthScreen() {
-  const [mode, setMode] = useState("login"); // login | signup | reset
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -132,7 +136,6 @@ function AuthScreen() {
   const [error, setError] = useState("");
   const [resetSent, setResetSent] = useState(false);
 
-  // Check for invite code in URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("invite");
@@ -154,16 +157,11 @@ function AuthScreen() {
   const handleSignup = async () => {
     setError(""); setLoading(true);
     try {
-      // Validate invite code
       const codeRef = doc(db, "invites", inviteCode);
       const codeSnap = await getDoc(codeRef);
       if (!codeSnap.exists()) { setError("Invalid invite code."); setLoading(false); return; }
       if (codeSnap.data().used) { setError("This invite code has already been used."); setLoading(false); return; }
-
-      // Create account
       await createUserWithEmailAndPassword(auth, email, password);
-
-      // Mark invite as used
       await setDoc(codeRef, { ...codeSnap.data(), used: true, usedBy: email, usedAt: new Date().toISOString() });
     } catch (e) { setError(friendlyError(e.code)); }
     setLoading(false);
@@ -193,7 +191,6 @@ function AuthScreen() {
           <h1 style={{ margin: 0, fontSize: 36, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em" }}>momentz</h1>
           <p style={{ margin: "8px 0 0", fontSize: 13, color: C.textLight, fontStyle: "italic", fontFamily: "Georgia, serif" }}>your story, your way</p>
         </div>
-
         <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, boxShadow: "0 4px 24px rgba(155,138,180,0.08)" }}>
           {mode === "login" && (
             <>
@@ -215,7 +212,6 @@ function AuthScreen() {
               </div>
             </>
           )}
-
           {mode === "signup" && (
             <>
               <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16, textAlign: "center" }}>enter your invite code to create an account</div>
@@ -240,7 +236,6 @@ function AuthScreen() {
               </div>
             </>
           )}
-
           {mode === "reset" && (
             resetSent ? (
               <div style={{ textAlign: "center", padding: "16px 0" }}>
@@ -276,23 +271,21 @@ function AuthScreen() {
   );
 }
 
-// ── Writing Journal Entry Editor ───────────────────────────────────────────
+// ── Writing Editor ─────────────────────────────────────────────────────────
 function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [mood, setMood] = useState("");
+  const [moods, setMoods] = useState([]);
   const [saving, setSaving] = useState(false);
+  const lineHeight = 32;
 
   const save = async () => {
     if (!body.trim()) return;
     setSaving(true);
     try {
       const entry = {
-        type: "writing",
-        createdAt: serverTimestamp(),
-        title: title.trim(),
-        body: body.trim(),
-        mood,
+        type: "writing", createdAt: serverTimestamp(),
+        title: title.trim(), body: body.trim(), moods,
         wordCount: body.trim().split(/\s+/).filter(Boolean).length,
       };
       const ref = await addDoc(collection(db, "users", user.uid, "writings"), entry);
@@ -301,46 +294,24 @@ function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }
     setSaving(false);
   };
 
-  const lineHeight = 32;
-
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
-      {/* Top bar */}
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
-        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: "0.15em", textTransform: "uppercase" }}>{fmtDate({ toDate: () => new Date() })}</div>
-        <button onClick={save} disabled={saving || !body.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: body.trim() ? 1 : 0.4 }}>
+        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: "0.1em" }}>{fmtDate({ toDate: () => new Date() })}</div>
+        <button onClick={save} disabled={saving || !body.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: body.trim() ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
           {saving ? <Spinner size={14} color="#fff" /> : "save"}
         </button>
       </div>
-
-      {/* Mood */}
-      <div style={{ padding: "14px 20px 10px", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
-        <MoodPicker value={mood} onChange={setMood} customMoods={customMoods} onAddCustomMood={onAddCustomMood} />
+      <div style={{ padding: "12px 20px 10px", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
+        <MoodPicker value={moods} onChange={setMoods} customMoods={customMoods} onAddCustomMood={onAddCustomMood} />
       </div>
-
-      {/* Writing area */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "56px" }}>
-        {/* Title */}
-        <input
-          type="text" value={title} onChange={e => setTitle(e.target.value)}
-          placeholder="title (optional)"
-          style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, padding: "20px 0 8px", lineHeight: "1.3", boxSizing: "border-box" }}
-        />
-        {/* Body */}
-        <textarea
-          value={body} onChange={e => setBody(e.target.value)}
-          placeholder="write anything..."
-          autoFocus
-          style={{
-            width: "100%", background: "none", border: "none", outline: "none", resize: "none",
-            fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`,
-            minHeight: "60vh", boxSizing: "border-box", padding: "4px 0",
-          }}
-        />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="title (optional)"
+          style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, padding: "20px 0 8px", lineHeight: "1.3", boxSizing: "border-box" }} />
+        <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="write anything..." autoFocus
+          style={{ width: "100%", background: "none", border: "none", outline: "none", resize: "none", fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, minHeight: "60vh", boxSizing: "border-box", padding: "4px 0" }} />
       </div>
-
-      {/* Word count */}
       <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
         <div style={{ fontSize: 11, color: C.textLight }}>{body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0} words</div>
       </div>
@@ -348,29 +319,28 @@ function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }
   );
 }
 
-// ── Writing Entry Viewer ───────────────────────────────────────────────────
+// ── Writing Viewer ─────────────────────────────────────────────────────────
 function WritingViewer({ entry, onBack, onDelete }) {
   const lineHeight = 32;
+  const moods = entry.moods || (entry.mood ? [entry.mood] : []);
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>← back</button>
-        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: "0.1em" }}>{fmtDate(entry.createdAt)} · {fmtTime(entry.createdAt)}</div>
+        <div style={{ fontSize: 11, color: C.textLight }}>{fmtDate(entry.createdAt)} · {fmtTime(entry.createdAt)}</div>
         <button onClick={() => onDelete(entry)} style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
       </div>
-
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "80px" }}>
-        {entry.mood && (
-          <div style={{ paddingTop: 16, marginBottom: 4 }}>
-            <div style={{ display: "inline-block", background: C.accentLight, border: `1px solid ${C.border}`, color: C.accentDark, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{entry.mood}</div>
+        {moods.length > 0 && (
+          <div style={{ paddingTop: 16, marginBottom: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {moods.map(m => (
+              <div key={m} style={{ display: "inline-block", background: C.accentLight, border: `1px solid ${C.border}`, color: C.accentDark, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{m}</div>
+            ))}
           </div>
         )}
-        {entry.title && (
-          <h2 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, lineHeight: 1.3 }}>{entry.title}</h2>
-        )}
+        {entry.title && <h2 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, lineHeight: 1.3 }}>{entry.title}</h2>}
         <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, whiteSpace: "pre-wrap", paddingTop: 4 }}>{entry.body}</div>
       </div>
-
       <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
         <div style={{ fontSize: 11, color: C.textLight }}>{entry.wordCount || 0} words</div>
       </div>
@@ -378,7 +348,7 @@ function WritingViewer({ entry, onBack, onDelete }) {
   );
 }
 
-// ── Invite Panel (owner only) ──────────────────────────────────────────────
+// ── Invite Panel ───────────────────────────────────────────────────────────
 function InvitePanel({ onClose }) {
   const [generating, setGenerating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState("");
@@ -388,30 +358,22 @@ function InvitePanel({ onClose }) {
     setGenerating(true);
     const code = generateCode();
     try {
-      await setDoc(doc(db, "invites", code), {
-        code, used: false,
-        createdAt: new Date().toISOString(),
-      });
-      const link = `${window.location.origin}?invite=${code}`;
-      setGeneratedLink(link);
-    } catch (e) { alert("Failed to generate invite: " + e.message); }
+      await setDoc(doc(db, "invites", code), { code, used: false, createdAt: new Date().toISOString() });
+      setGeneratedLink(`${window.location.origin}?invite=${code}`);
+    } catch (e) { alert("Failed: " + e.message); }
     setGenerating(false);
   };
 
   const copy = () => {
     navigator.clipboard.writeText(generatedLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 340, width: "100%", animation: "popIn 0.22s ease" }}>
         <div style={{ fontSize: 18, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>invite someone</div>
-        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>
-          Generate a one-time invite link. Once someone uses it to sign up, it expires automatically.
-        </div>
-
+        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>Generate a one-time link. It expires after use.</div>
         {!generatedLink ? (
           <button onClick={generateInvite} disabled={generating} style={{ width: "100%", padding: "12px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             {generating ? <Spinner size={16} color="#fff" /> : "generate invite link"}
@@ -422,12 +384,9 @@ function InvitePanel({ onClose }) {
             <button onClick={copy} style={{ width: "100%", padding: "12px", borderRadius: 12, background: copied ? "#4caf7d" : C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s" }}>
               {copied ? "✓ copied!" : "copy link"}
             </button>
-            <button onClick={generateInvite} disabled={generating} style={{ width: "100%", padding: "10px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              generate another
-            </button>
+            <button onClick={generateInvite} disabled={generating} style={{ width: "100%", padding: "10px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>generate another</button>
           </div>
         )}
-
         <div style={{ marginTop: 16, textAlign: "center" }}>
           <button onClick={onClose} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>close</button>
         </div>
@@ -436,10 +395,52 @@ function InvitePanel({ onClose }) {
   );
 }
 
+// ── Swipe Video Player ─────────────────────────────────────────────────────
+// Each video is its own component so we can properly manage play/pause/mute
+function SwipeVideo({ entry, isActive, onDelete }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (isActive) {
+      vid.muted = false;
+      vid.currentTime = 0;
+      vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+    } else {
+      vid.muted = true;
+      vid.pause();
+      vid.currentTime = 0;
+    }
+  }, [isActive]);
+
+  const moods = entry.moods || (entry.mood ? [entry.mood] : []);
+
+  return (
+    <div style={{ position: "absolute", inset: 0 }}>
+      <video ref={videoRef} src={entry.videoURL} playsInline loop muted
+        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(20,10,30,0.9) 0%, transparent 50%)" }} />
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "24px 20px 52px" }}>
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>{fmtDate(entry.createdAt)} · {fmtTime(entry.createdAt)}</div>
+        {moods.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {moods.map(m => (
+              <div key={m} style={{ background: "rgba(155,138,180,0.3)", border: "1px solid rgba(212,200,232,0.3)", color: C.accentLight, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{m}</div>
+            ))}
+          </div>
+        )}
+        {entry.note && <div style={{ fontSize: 14, lineHeight: 1.65, color: "rgba(255,255,255,0.85)", fontStyle: "italic", fontFamily: "Georgia, serif" }}>"{entry.note}"</div>}
+        {entry.duration > 0 && <div style={{ marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{fmtDur(entry.duration)}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(undefined);
-  const [tab, setTab] = useState("video"); // video | writing
+  const [tab, setTab] = useState("video");
   const [entries, setEntries] = useState([]);
   const [writings, setWritings] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
@@ -448,30 +449,40 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("mz_custom_moods") || "[]"); } catch { return []; }
   });
 
-  const [view, setView] = useState("grid"); // grid | record | swipe | writeNew | writeView
+  const [view, setView] = useState("grid");
   const [swipeIndex, setSwipeIndex] = useState(0);
   const [selectedWriting, setSelectedWriting] = useState(null);
 
+  // recording
   const [stream, setStream] = useState(null);
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [previewBlob, setPreviewBlob] = useState(null);
-  const [selectedMood, setSelectedMood] = useState("");
+  const [previewURL, setPreviewURL] = useState(null);
+  const [selectedMoods, setSelectedMoods] = useState([]);
   const [note, setNote] = useState("");
   const [camError, setCamError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // upload from camera roll
+  const [uploadMode, setUploadMode] = useState("record"); // record | upload
+  const fileInputRef = useRef(null);
+
+  // ui
   const [filterMood, setFilterMood] = useState("all");
   const [showDelete, setShowDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showFABMenu, setShowFABMenu] = useState(false);
 
   const videoRef = useRef(null);
   const mrRef = useRef(null);
   const chunksRef = useRef([]);
   const elapsedRef = useRef(null);
   const touchStartY = useRef(null);
+  const touchStartX = useRef(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => setUser(u ?? null));
@@ -507,12 +518,18 @@ export default function App() {
     try { localStorage.setItem("mz_custom_moods", JSON.stringify(customMoods)); } catch {}
   }, [customMoods]);
 
+  // cleanup preview URL on unmount
+  useEffect(() => {
+    return () => { if (previewURL) URL.revokeObjectURL(previewURL); };
+  }, [previewURL]);
+
   const stopStream = useCallback(() => {
     if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
   }, [stream]);
 
   const openRecorder = async () => {
-    setCamError(null); setPreviewBlob(null); setSelectedMood(""); setNote(""); setElapsed(0);
+    setCamError(null); setPreviewBlob(null); setPreviewURL(null);
+    setSelectedMoods([]); setNote(""); setElapsed(0); setUploadMode("record");
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -520,6 +537,24 @@ export default function App() {
       });
       setStream(s); setView("record");
     } catch { setCamError("Camera access denied — please allow camera and microphone access."); }
+    setShowFABMenu(false);
+  };
+
+  const openUpload = () => {
+    setPreviewBlob(null); setPreviewURL(null);
+    setSelectedMoods([]); setNote(""); setUploadMode("upload");
+    setShowFABMenu(false);
+    setView("record");
+    setTimeout(() => fileInputRef.current?.click(), 100);
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreviewBlob(file);
+    setPreviewURL(url);
+    e.target.value = "";
   };
 
   const startCountdown = () => {
@@ -534,7 +569,12 @@ export default function App() {
     const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(m => MediaRecorder.isTypeSupported(m)) || "video/webm";
     const mr = new MediaRecorder(stream, { mimeType });
     mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    mr.onstop = () => setPreviewBlob(new Blob(chunksRef.current, { type: mimeType }));
+    mr.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      setPreviewBlob(blob);
+      setPreviewURL(url);
+    };
     mr.start(); mrRef.current = mr;
     setRecording(true); setElapsed(0);
     elapsedRef.current = setInterval(() => setElapsed(p => p + 1), 1000);
@@ -557,15 +597,22 @@ export default function App() {
     xhr.send(fd);
   });
 
-  const generateThumbnail = (blob) => new Promise((resolve, reject) => {
+  const generateThumbnail = (blobOrFile) => new Promise((resolve, reject) => {
     const vid = document.createElement("video");
-    vid.src = URL.createObjectURL(blob); vid.muted = true; vid.currentTime = 0.5;
+    vid.src = URL.createObjectURL(blobOrFile); vid.muted = true; vid.currentTime = 1;
     vid.onloadeddata = () => {
       const c = document.createElement("canvas"); c.width = 480; c.height = 854;
       c.getContext("2d").drawImage(vid, 0, 0, 480, 854);
       resolve(c.toDataURL("image/jpeg", 0.7)); URL.revokeObjectURL(vid.src);
     };
     vid.onerror = reject;
+  });
+
+  const getVideoDuration = (blobOrFile) => new Promise((resolve) => {
+    const vid = document.createElement("video");
+    vid.src = URL.createObjectURL(blobOrFile); vid.muted = true;
+    vid.onloadedmetadata = () => { resolve(Math.round(vid.duration)); URL.revokeObjectURL(vid.src); };
+    vid.onerror = () => resolve(0);
   });
 
   const saveVideo = async () => {
@@ -575,14 +622,23 @@ export default function App() {
       const cld = await uploadToCloudinary(previewBlob);
       let thumbnail = null;
       try { thumbnail = await generateThumbnail(previewBlob); } catch {}
+      const duration = uploadMode === "upload" ? await getVideoDuration(previewBlob) : elapsed;
       const entry = {
-        createdAt: serverTimestamp(), duration: elapsed,
-        mood: selectedMood, note: note.trim(),
-        videoURL: cld.secure_url, cloudinaryPublicId: cld.public_id, thumbnail,
+        createdAt: serverTimestamp(),
+        duration,
+        moods: selectedMoods,
+        note: note.trim(),
+        videoURL: cld.secure_url,
+        cloudinaryPublicId: cld.public_id,
+        thumbnail,
+        source: uploadMode,
       };
       const ref = await addDoc(collection(db, "users", user.uid, "entries"), entry);
       setEntries(prev => [{ id: ref.id, ...entry, createdAt: { toDate: () => new Date() } }, ...prev]);
-      stopStream(); setView("grid"); setPreviewBlob(null);
+      stopStream();
+      if (previewURL) URL.revokeObjectURL(previewURL);
+      setPreviewBlob(null); setPreviewURL(null);
+      setView("grid");
     } catch (e) { alert("Save failed: " + e.message); }
     setUploading(false);
   };
@@ -609,23 +665,41 @@ export default function App() {
     setDeleting(false);
   };
 
-  const discard = () => { stopStream(); setPreviewBlob(null); setView("grid"); };
-
-  const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
-  const handleTouchEnd = (e) => {
-    if (touchStartY.current === null) return;
-    const diff = touchStartY.current - e.changedTouches[0].clientY;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0 && swipeIndex < filteredEntries.length - 1) setSwipeIndex(i => i + 1);
-      if (diff < 0 && swipeIndex > 0) setSwipeIndex(i => i - 1);
-    }
-    touchStartY.current = null;
+  const discard = () => {
+    stopStream();
+    if (previewURL) URL.revokeObjectURL(previewURL);
+    setPreviewBlob(null); setPreviewURL(null);
+    setView("grid");
   };
 
-  const filteredEntries = filterMood === "all" ? entries : entries.filter(e => e.mood === filterMood);
-  const usedMoods = [...new Set(entries.map(e => e.mood).filter(Boolean))];
+  // ── Swipe touch handlers (both directions) ──
+  const handleTouchStart = (e) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e) => {
+    if (touchStartY.current === null) return;
+    const diffY = touchStartY.current - e.changedTouches[0].clientY;
+    const diffX = Math.abs(touchStartX.current - e.changedTouches[0].clientX);
+    // Only swipe if mostly vertical
+    if (Math.abs(diffY) > 50 && Math.abs(diffY) > diffX) {
+      if (diffY > 0 && swipeIndex < filteredEntries.length - 1) setSwipeIndex(i => i + 1); // swipe up → next
+      if (diffY < 0 && swipeIndex > 0) setSwipeIndex(i => i - 1); // swipe down → previous
+    }
+    touchStartY.current = null; touchStartX.current = null;
+  };
+
+  const filteredEntries = filterMood === "all"
+    ? entries
+    : entries.filter(e => {
+        const moods = e.moods || (e.mood ? [e.mood] : []);
+        return moods.includes(filterMood);
+      });
+
+  const usedMoods = [...new Set(entries.flatMap(e => e.moods || (e.mood ? [e.mood] : [])))];
   const isOwner = user?.email === OWNER_EMAIL;
 
+  // ── Loading ──
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
       <div style={{ fontSize: 24, fontFamily: "Georgia, serif", color: C.textMid }}>momentz</div>
@@ -639,62 +713,47 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
 
-      {/* ── Writing views (overlay) ── */}
+      {/* Hidden file input for camera roll uploads */}
+      <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileSelect} style={{ display: "none" }} />
+
+      {/* Writing overlays */}
       {view === "writeNew" && (
-        <WritingEditor
-          user={user}
-          customMoods={customMoods}
-          onAddCustomMood={m => setCustomMoods(p => [...p, m])}
+        <WritingEditor user={user} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])}
           onSaved={(entry) => { setWritings(prev => [entry, ...prev]); setView("grid"); }}
-          onCancel={() => setView("grid")}
-        />
+          onCancel={() => setView("grid")} />
       )}
       {view === "writeView" && selectedWriting && (
-        <WritingViewer
-          entry={selectedWriting}
+        <WritingViewer entry={selectedWriting}
           onBack={() => { setView("grid"); setSelectedWriting(null); }}
-          onDelete={(e) => setShowDelete({ ...e, type: "writing" })}
-        />
+          onDelete={(e) => setShowDelete({ ...e, _type: "writing" })} />
       )}
 
-      {/* ── MAIN GRID ── */}
-      {(view === "grid") && (
+      {/* ── GRID ── */}
+      {view === "grid" && (
         <div style={{ maxWidth: 480, margin: "0 auto", height: "100vh", display: "flex", flexDirection: "column" }}>
-
           {/* Header */}
           <div style={{ padding: "28px 20px 0", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
             <div>
               <div style={{ fontSize: 9, letterSpacing: "0.3em", color: C.textLight, textTransform: "uppercase", marginBottom: 3 }}>private journal</div>
               <h1 style={{ margin: 0, fontSize: 30, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em", lineHeight: 1 }}>momentz</h1>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {isOwner && (
-                <button onClick={() => setShowInvite(true)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.accent, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>+ invite</button>
-              )}
+            <div style={{ display: "flex", gap: 8 }}>
+              {isOwner && <button onClick={() => setShowInvite(true)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.accent, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>+ invite</button>}
               <button onClick={() => signOut(auth)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textLight, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>sign out</button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div style={{ padding: "16px 20px 0", display: "flex", gap: 0, flexShrink: 0 }}>
-            <button onClick={() => setTab("video")} style={{
-              flex: 1, padding: "10px", background: "none", border: "none",
-              borderBottom: `2px solid ${tab === "video" ? C.accentDark : C.border}`,
-              color: tab === "video" ? C.accentDark : C.textLight,
-              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-              fontWeight: tab === "video" ? 500 : 400, transition: "all 0.15s",
-            }}>
-              video journal
-            </button>
-            <button onClick={() => setTab("writing")} style={{
-              flex: 1, padding: "10px", background: "none", border: "none",
-              borderBottom: `2px solid ${tab === "writing" ? C.accentDark : C.border}`,
-              color: tab === "writing" ? C.accentDark : C.textLight,
-              fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-              fontWeight: tab === "writing" ? 500 : 400, transition: "all 0.15s",
-            }}>
-              writing journal
-            </button>
+          <div style={{ padding: "16px 20px 0", display: "flex", flexShrink: 0 }}>
+            {["video", "writing"].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                flex: 1, padding: "10px", background: "none", border: "none",
+                borderBottom: `2px solid ${tab === t ? C.accentDark : C.border}`,
+                color: tab === t ? C.accentDark : C.textLight,
+                fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+                fontWeight: tab === t ? 500 : 400, transition: "all 0.15s",
+              }}>{t === "video" ? "video journal" : "writing journal"}</button>
+            ))}
           </div>
 
           {/* ── VIDEO TAB ── */}
@@ -713,9 +772,7 @@ export default function App() {
                   ))}
                 </div>
               )}
-
               {camError && <div style={{ margin: "0 20px 10px", padding: 12, background: C.dangerLight, border: `1px solid ${C.danger}22`, borderRadius: 10, fontSize: 12, color: C.danger, flexShrink: 0 }}>{camError}</div>}
-
               <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
                 {loadingEntries ? (
                   <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
@@ -727,39 +784,34 @@ export default function App() {
                     <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
                       {entries.length === 0 ? "your first moment is waiting" : "no entries for this mood"}
                     </div>
-                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the button below to begin</div>
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the + button below to begin</div>
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, padding: "4px 2px" }}>
-                    {filteredEntries.map((entry, i) => (
-                      <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }}
-                        style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.accentLight, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
-                        {entry.thumbnail
-                          ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                          : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.accent }} />
-                            </div>
-                        }
-                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(30,20,40,0.85) 0%, transparent 55%)" }} />
-                        <div style={{ position: "absolute", bottom: 6, left: 6, right: 6 }}>
-                          {entry.mood && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.mood}</div>}
-                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{fmtDate(entry.createdAt)}</div>
-                          {entry.note && <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.note}</div>}
+                    {filteredEntries.map((entry, i) => {
+                      const moods = entry.moods || (entry.mood ? [entry.mood] : []);
+                      return (
+                        <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }}
+                          style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.accentLight, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
+                          {entry.thumbnail
+                            ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.accent }} />
+                              </div>
+                          }
+                          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(30,20,40,0.85) 0%, transparent 55%)" }} />
+                          <div style={{ position: "absolute", bottom: 6, left: 6, right: 6 }}>
+                            {moods.length > 0 && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{moods[0]}{moods.length > 1 ? ` +${moods.length - 1}` : ""}</div>}
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{fmtDate(entry.createdAt)}</div>
+                            {entry.note && <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.note}</div>}
+                          </div>
+                          {entry.duration > 0 && <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.7)" }}>{fmtDur(entry.duration)}</div>}
+                          {entry.source === "upload" && <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 7, color: "rgba(255,255,255,0.6)" }}>↑</div>}
                         </div>
-                        <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.7)" }}>{fmtDur(entry.duration)}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
-              </div>
-
-              {/* Record FAB */}
-              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", background: `linear-gradient(to top, ${C.bg} 60%, transparent)`, pointerEvents: "none" }}>
-                <button onClick={openRecorder} style={{ pointerEvents: "all", background: C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, transition: "transform 0.15s" }}
-                  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
-                  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
-                </button>
               </div>
             </>
           )}
@@ -774,75 +826,112 @@ export default function App() {
                   <div style={{ padding: "60px 20px", textAlign: "center" }}>
                     <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✍️</div>
                     <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>your first entry is waiting</div>
-                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the button below to start writing</div>
+                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the + button below to start writing</div>
                   </div>
                 ) : (
                   <div style={{ padding: "8px 16px" }}>
-                    {writings.map((w, i) => (
-                      <div key={w.id} onClick={() => { setSelectedWriting(w); setView("writeView"); }}
-                        style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", animation: `fadeUp 0.3s ease ${i * 0.02}s both`, transition: "box-shadow 0.15s" }}
-                        onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 16px rgba(155,138,180,0.12)`}
-                        onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                          <div>
-                            {w.title && <div style={{ fontSize: 15, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, marginBottom: 3 }}>{w.title}</div>}
-                            <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.05em" }}>{fmtDate(w.createdAt)}</div>
+                    {writings.map((w, i) => {
+                      const moods = w.moods || (w.mood ? [w.mood] : []);
+                      return (
+                        <div key={w.id} onClick={() => { setSelectedWriting(w); setView("writeView"); }}
+                          style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", animation: `fadeUp 0.3s ease ${i * 0.02}s both`, transition: "box-shadow 0.15s" }}
+                          onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 16px rgba(155,138,180,0.12)`}
+                          onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div>
+                              {w.title && <div style={{ fontSize: 15, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, marginBottom: 3 }}>{w.title}</div>}
+                              <div style={{ fontSize: 10, color: C.textLight }}>{fmtDate(w.createdAt)}</div>
+                            </div>
+                            {moods.length > 0 && (
+                              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "50%" }}>
+                                {moods.slice(0, 2).map(m => <div key={m} style={{ fontSize: 10, color: C.accentDark, background: C.accentLight, borderRadius: 20, padding: "3px 8px", whiteSpace: "nowrap" }}>{m}</div>)}
+                                {moods.length > 2 && <div style={{ fontSize: 10, color: C.textLight }}>+{moods.length - 2}</div>}
+                              </div>
+                            )}
                           </div>
-                          {w.mood && <div style={{ fontSize: 10, color: C.accentDark, background: C.accentLight, borderRadius: 20, padding: "3px 10px", whiteSpace: "nowrap", marginLeft: 8 }}>{w.mood}</div>}
+                          <div style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{w.body}</div>
+                          <div style={{ marginTop: 8, fontSize: 10, color: C.textLight }}>{w.wordCount || 0} words</div>
                         </div>
-                        <div style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{w.body}</div>
-                        <div style={{ marginTop: 8, fontSize: 10, color: C.textLight }}>{w.wordCount || 0} words</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
-
-              {/* Write FAB */}
-              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", background: `linear-gradient(to top, ${C.bg} 60%, transparent)`, pointerEvents: "none" }}>
-                <button onClick={() => setView("writeNew")} style={{ pointerEvents: "all", background: C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, fontSize: 24, color: "#fff", transition: "transform 0.15s" }}
-                  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.08)"}
-                  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-                  ✍
-                </button>
-              </div>
             </>
           )}
+
+          {/* ── FAB with menu ── */}
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", pointerEvents: "none", zIndex: 100 }}>
+            <div style={{ position: "relative", pointerEvents: "all" }}>
+              {/* FAB menu options */}
+              {showFABMenu && tab === "video" && (
+                <div style={{ position: "absolute", bottom: 72, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", animation: "fadeUp 0.2s ease" }}>
+                  <button onClick={openRecorder} style={{ background: C.bgCard, border: `1px solid ${C.border}`, color: C.text, borderRadius: 24, padding: "10px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(155,138,180,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>⏺</span> record now
+                  </button>
+                  <button onClick={openUpload} style={{ background: C.bgCard, border: `1px solid ${C.border}`, color: C.text, borderRadius: 24, padding: "10px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(155,138,180,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>↑</span> upload from camera roll
+                  </button>
+                </div>
+              )}
+
+              {/* Main FAB */}
+              <button
+                onClick={() => {
+                  if (tab === "writing") { setShowFABMenu(false); setView("writeNew"); }
+                  else setShowFABMenu(p => !p);
+                }}
+                style={{ background: showFABMenu ? C.text : C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, transition: "all 0.2s", fontSize: showFABMenu ? 22 : 26, color: "#fff" }}>
+                {tab === "writing" ? "✍" : (showFABMenu ? "×" : "+")}
+              </button>
+            </div>
+          </div>
+
+          {/* Tap outside to close FAB menu */}
+          {showFABMenu && <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowFABMenu(false)} />}
         </div>
       )}
 
-      {/* ── SWIPE ── */}
+      {/* ── SWIPE VIEW ── */}
       {view === "swipe" && filteredEntries.length > 0 && (
         <div style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden" }}
           onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+
           {filteredEntries.map((entry, i) => (
-            <div key={entry.id} style={{ position: "absolute", inset: 0, transform: `translateY(${(i - swipeIndex) * 100}%)`, transition: "transform 0.35s cubic-bezier(0.4,0,0.2,1)" }}>
-              <video src={entry.videoURL} playsInline autoPlay={i === swipeIndex} loop
-                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(20,10,30,0.9) 0%, transparent 50%)" }} />
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, padding: "16px 20px", display: "flex", justifyContent: "space-between", background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)" }}>
-                <button onClick={() => setView("grid")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← grid</button>
-                <button onClick={() => setShowDelete(entry)} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "rgba(255,255,255,0.7)", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
-              </div>
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "24px 20px 48px" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>{fmtDate(entry.createdAt)} · {fmtTime(entry.createdAt)}</div>
-                {entry.mood && <div style={{ display: "inline-block", background: "rgba(155,138,180,0.3)", border: "1px solid rgba(212,200,232,0.3)", color: C.accentLight, borderRadius: 20, padding: "4px 12px", fontSize: 11, marginBottom: 10 }}>{entry.mood}</div>}
-                {entry.note && <div style={{ fontSize: 14, lineHeight: 1.65, color: "rgba(255,255,255,0.85)", fontStyle: "italic", fontFamily: "Georgia, serif" }}>"{entry.note}"</div>}
-                <div style={{ marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{fmtDur(entry.duration)}</div>
-              </div>
-              {filteredEntries.length > 1 && (
-                <div style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {filteredEntries.map((_, idx) => (
-                    <div key={idx} onClick={() => setSwipeIndex(idx)} style={{ width: 3, height: idx === swipeIndex ? 20 : 6, background: idx === swipeIndex ? "#fff" : "rgba(255,255,255,0.3)", borderRadius: 3, cursor: "pointer", transition: "all 0.2s" }} />
-                  ))}
-                </div>
-              )}
+            <div key={entry.id} style={{
+              position: "absolute", inset: 0,
+              transform: `translateY(${(i - swipeIndex) * 100}%)`,
+              transition: "transform 0.38s cubic-bezier(0.4,0,0.2,1)",
+              willChange: "transform",
+            }}>
+              <SwipeVideo entry={entry} isActive={i === swipeIndex} onDelete={() => setShowDelete(entry)} />
             </div>
           ))}
+
+          {/* Top bar */}
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "16px 20px", display: "flex", justifyContent: "space-between", background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)", zIndex: 10 }}>
+            <button onClick={() => setView("grid")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← grid</button>
+            <button onClick={() => setShowDelete(filteredEntries[swipeIndex])} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "rgba(255,255,255,0.7)", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+          </div>
+
+          {/* Progress dots */}
+          {filteredEntries.length > 1 && (
+            <div style={{ position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, zIndex: 10 }}>
+              {filteredEntries.map((_, idx) => (
+                <div key={idx} onClick={() => setSwipeIndex(idx)} style={{ width: 3, height: idx === swipeIndex ? 20 : 6, background: idx === swipeIndex ? "#fff" : "rgba(255,255,255,0.3)", borderRadius: 3, cursor: "pointer", transition: "all 0.2s" }} />
+              ))}
+            </div>
+          )}
+
+          {/* Swipe hint */}
+          <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 16, zIndex: 10 }}>
+            {swipeIndex > 0 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↑ swipe up for newer</div>}
+            {swipeIndex < filteredEntries.length - 1 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↓ swipe down for older</div>}
+          </div>
         </div>
       )}
 
-      {/* ── RECORD ── */}
+      {/* ── RECORD / UPLOAD VIEW ── */}
       {view === "record" && (
         <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 }}>
@@ -853,16 +942,32 @@ export default function App() {
                 <span style={{ fontSize: 12, color: "#fff", fontFamily: "inherit" }}>{fmtDur(elapsed)}</span>
               </div>
             )}
+            {uploadMode === "upload" && !previewBlob && (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>select a video</div>
+            )}
           </div>
-          <div style={{ flex: 1, overflow: "hidden" }}>
-            {!previewBlob
-              ? <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              : <video src={URL.createObjectURL(previewBlob)} controls playsInline style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
-            }
+
+          <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+            {uploadMode === "record" && !previewBlob && (
+              <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            )}
+            {previewBlob && previewURL && (
+              <video src={previewURL} controls playsInline style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
+            )}
+            {uploadMode === "upload" && !previewBlob && (
+              <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "#0a0a0a" }}>
+                <div style={{ fontSize: 48 }}>📁</div>
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>tap to choose a video</div>
+                <button onClick={() => fileInputRef.current?.click()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 24, padding: "12px 28px", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                  browse camera roll
+                </button>
+              </div>
+            )}
             {countdown !== null && (
               <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 100, fontFamily: "Georgia, serif", color: "rgba(255,255,255,0.9)", animation: "popIn 0.7s ease" }}>{countdown}</div>
             )}
           </div>
+
           <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", padding: "16px 20px 32px", flexShrink: 0 }}>
             {uploading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0" }}>
@@ -873,27 +978,34 @@ export default function App() {
                 <div style={{ fontSize: 11, color: C.textLight }}>{uploadProgress}%</div>
               </div>
             ) : !previewBlob ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <MoodPicker value={selectedMood} onChange={setSelectedMood} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
-                <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
-                  {!recording
-                    ? <button onClick={startCountdown} style={{ width: 64, height: 64, borderRadius: "50%", background: C.accentDark, border: `4px solid ${C.accentLight}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 24px ${C.accent}44`, transition: "transform 0.15s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-                        <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
-                      </button>
-                    : <button onClick={stopRecording} style={{ width: 64, height: 64, borderRadius: "50%", background: C.rec, border: "4px solid rgba(224,91,115,0.3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "recPulse 1.6s ease infinite" }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 4, background: "#fff" }} />
-                      </button>
-                  }
+              uploadMode === "record" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <MoodPicker value={selectedMoods} onChange={setSelectedMoods} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
+                  <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
+                    {!recording
+                      ? <button onClick={startCountdown} style={{ width: 64, height: 64, borderRadius: "50%", background: C.accentDark, border: `4px solid ${C.accentLight}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 24px ${C.accent}44`, transition: "transform 0.15s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
+                        </button>
+                      : <button onClick={stopRecording} style={{ width: 64, height: 64, borderRadius: "50%", background: C.rec, border: "4px solid rgba(224,91,115,0.3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "recPulse 1.6s ease infinite" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: 4, background: "#fff" }} />
+                        </button>
+                    }
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                <div style={{ fontSize: 12, color: C.textMid, textAlign: "center" }}>happy with this?</div>
-                <MoodPicker value={selectedMood} onChange={setSelectedMood} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
+                <div style={{ fontSize: 12, color: C.textMid, textAlign: "center" }}>
+                  {uploadMode === "upload" ? "looks good? add tags then save." : "happy with this?"}
+                </div>
+                <MoodPicker value={selectedMoods} onChange={setSelectedMoods} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
                 <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="a note to your future self... (optional)" rows={2}
                   style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px", color: C.text, fontSize: 12, fontFamily: "inherit", resize: "none", outline: "none" }} />
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setPreviewBlob(null)} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>re-record</button>
+                  {uploadMode === "record"
+                    ? <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); }} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>re-record</button>
+                    : <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); fileInputRef.current?.click(); }} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>choose different</button>
+                  }
                   <button onClick={saveVideo} style={{ flex: 2, padding: "11px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>save to momentz</button>
                 </div>
               </div>
@@ -907,11 +1019,12 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
           <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.dangerLight, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🗑</div>
-            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this {showDelete.type === "writing" ? "entry" : "moment"}?</div>
+            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this {showDelete._type === "writing" ? "entry" : "moment"}?</div>
             <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This will be removed from your journal forever.</div>
             <div style={{ display: "flex", gap: 9 }}>
               <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>keep it</button>
-              <button onClick={() => showDelete.type === "writing" ? deleteWriting(showDelete) : deleteEntry(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => showDelete._type === "writing" ? deleteWriting(showDelete) : deleteEntry(showDelete)} disabled={deleting}
+                style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {deleting ? <Spinner size={15} color={C.danger} /> : "delete"}
               </button>
             </div>
@@ -919,15 +1032,13 @@ export default function App() {
         </div>
       )}
 
-      {/* ── INVITE PANEL ── */}
       {showInvite && <InvitePanel onClose={() => setShowInvite(false)} />}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { display: none; }
-        textarea::placeholder { color: ${C.textLight}; }
-        input::placeholder { color: ${C.textLight}; }
+        textarea::placeholder, input::placeholder { color: ${C.textLight}; }
         video { outline: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
