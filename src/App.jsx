@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://apzwuiqyxnfzbuooerhb.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwend1aXF5eG5memJ1b29lcmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNjIyNDAsImV4cCI6MjA5MzkzODI0MH0.RnMnfA3Mo70nuKCcqzZox-Mkul5y23jlBh1v8SrFn94";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwend1aXF5eG5memJ1b29vcmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNjIyNDAsImV4cCI6MjA5MzkzODI0MH0.RnMnfA3Mo70nuKCcqzZox-Mkul5y23jlBh1v8SrFn94";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── Owner email ────────────────────────────────────────────────────────────
@@ -489,7 +489,7 @@ export default function App() {
     setSelectedMoods([]); setNote(""); setElapsed(0); setUploadMode("record");
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: { echoCancellation: true, noiseSuppression: true }
       });
       setStream(s); setView("record");
@@ -504,9 +504,18 @@ export default function App() {
     setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
+  const MAX_FILE_MB = 45;
+
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > MAX_FILE_MB) {
+      alert(`This video is ${Math.round(sizeMB)}MB — too large to upload. Please compress it on your phone first and keep it under ${MAX_FILE_MB}MB.`);
+      e.target.value = "";
+      setView("grid");
+      return;
+    }
     setPreviewBlob(file); setPreviewURL(URL.createObjectURL(file));
     e.target.value = "";
   };
@@ -519,7 +528,7 @@ export default function App() {
   const beginRecording = () => {
     chunksRef.current = [];
     const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(m => MediaRecorder.isTypeSupported(m)) || "video/webm";
-    const mr = new MediaRecorder(stream, { mimeType });
+    const mr = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1500000 });
     mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
     mr.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType });
@@ -557,6 +566,11 @@ export default function App() {
   const saveVideo = async () => {
     if (!previewBlob || !user) return;
     setUploading(true); setUploadProgress(0);
+
+    // Create abort controller so cancel button can stop the upload
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
+
     try {
       const ext = previewBlob.name?.split(".").pop() || "webm";
       const path = `${user.id}/${Date.now()}.${ext}`;
@@ -564,8 +578,13 @@ export default function App() {
       const { error: uploadError } = await sb.storage.from("videos").upload(path, previewBlob, {
         cacheControl: "3600",
         upsert: false,
+        signal: abortController.signal,
       });
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        if (uploadError.name === "AbortError") return; // user cancelled
+        throw uploadError;
+      }
+      uploadAbortRef.current = null;
       setUploadProgress(100);
 
       let thumbnail = null;
@@ -607,12 +626,13 @@ export default function App() {
     setDeleting(false);
   };
 
-  const uploadXHRRef = useRef(null);
+  const uploadAbortRef = useRef(null);
 
   const discard = () => {
-    if (uploadXHRRef.current) {
-      uploadXHRRef.current.abort();
-      uploadXHRRef.current = null;
+    // Abort any in-progress upload
+    if (uploadAbortRef.current) {
+      uploadAbortRef.current.abort();
+      uploadAbortRef.current = null;
     }
     stopStream();
     if (previewURL) URL.revokeObjectURL(previewURL);
@@ -620,6 +640,7 @@ export default function App() {
     setUploading(false); setUploadProgress(0);
     setView("grid");
   };
+
   const handleTouchStart = (e) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
