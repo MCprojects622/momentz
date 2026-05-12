@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://apzwuiqyxnfzbuooerhb.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwend1aXF5eG5memJ1b29vcmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNjIyNDAsImV4cCI6MjA5MzkzODI0MH0.RnMnfA3Mo70nuKCcqzZox-Mkul5y23jlBh1v8SrFn94";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwend1aXF5eG5memJ1b29lcmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNjIyNDAsImV4cCI6MjA5MzkzODI0MH0.RnMnfA3Mo70nuKCcqzZox-Mkul5y23jlBh1v8SrFn94";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── Owner email ────────────────────────────────────────────────────────────
