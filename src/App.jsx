@@ -275,14 +275,128 @@ function WritingViewer({ entry, onBack, onDelete }) {
   );
 }
 
-// ── Thread Post ────────────────────────────────────────────────────────────
-function ThreadPost({ thread, onDelete, user }) {
+// ── Pulse Composer ─────────────────────────────────────────────────────────
+function PulseComposer({ user, onPosted, onCancel }) {
+  const [parts, setParts] = useState([""]);
+  const [posting, setPosting] = useState(false);
+  const textareaRefs = useRef([]);
+
+  const updatePart = (i, val) => {
+    const next = [...parts];
+    next[i] = val;
+    setParts(next);
+  };
+
+  const addPart = () => {
+    setParts(prev => [...prev, ""]);
+    setTimeout(() => textareaRefs.current[parts.length]?.focus(), 80);
+  };
+
+  const removePart = (i) => {
+    if (parts.length === 1) return;
+    setParts(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const hasContent = parts.some(p => p.trim());
+
+  const handlePost = async () => {
+    const filtered = parts.filter(p => p.trim());
+    if (!filtered.length) return;
+    setPosting(true);
+    try {
+      // Save thread with parts as JSON array
+      const { data, error } = await sb.from("threads").insert({
+        user_id: user.id,
+        body: filtered[0],
+        parts: filtered,
+      }).select().single();
+      if (error) throw error;
+      onPosted({ ...data, reply_count: 0 });
+    } catch (e) { alert("Failed: " + e.message); }
+    setPosting(false);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", flexDirection: "column", zIndex: 300 }}>
+      {/* Header */}
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bgCard }}>
+        <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
+        <div style={{ fontSize: 12, color: C.textMid, fontWeight: 500 }}>new pulse</div>
+        <button onClick={handlePost} disabled={posting || !hasContent} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: hasContent ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
+          {posting ? <Spinner size={14} color="#fff" /> : "post"}
+        </button>
+      </div>
+
+      {/* Parts */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 100px" }}>
+        {parts.map((part, i) => (
+          <div key={i} style={{ display: "flex", gap: 12, marginBottom: 0 }}>
+            {/* Thread line indicator */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: C.accentDark }} />
+              </div>
+              {i < parts.length - 1 && (
+                <div style={{ width: 2, flex: 1, background: C.accentLight, minHeight: 24, margin: "4px 0" }} />
+              )}
+            </div>
+
+            {/* Input */}
+            <div style={{ flex: 1, paddingBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.1em" }}>
+                  {i === 0 ? "start here" : `part ${i + 1}`}
+                </div>
+                {parts.length > 1 && (
+                  <button onClick={() => removePart(i)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+                )}
+              </div>
+              <textarea
+                ref={el => textareaRefs.current[i] = el}
+                value={part}
+                onChange={e => updatePart(i, e.target.value)}
+                placeholder={i === 0 ? "what's on your mind?" : "continue the thought..."}
+                autoFocus={i === 0}
+                rows={4}
+                style={{ width: "100%", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.65, boxSizing: "border-box", transition: "border-color 0.15s" }}
+                onFocus={e => e.target.style.borderColor = C.accent}
+                onBlur={e => e.target.style.borderColor = C.border}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: C.textLight }}>{part.length} chars</div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Add part button */}
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ width: 34, display: "flex", justifyContent: "center" }}>
+            <div style={{ width: 2, height: 20, background: C.accentLight }} />
+          </div>
+          <button onClick={addPart} style={{ background: "none", border: `1px dashed ${C.border}`, color: C.accent, borderRadius: 20, padding: "8px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.accentLight; e.currentTarget.style.borderColor = C.accent; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = C.border; }}>
+            + add part
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Pulse Thread Card ──────────────────────────────────────────────────────
+function PulseCard({ thread, onDelete, user }) {
   const [replies, setReplies] = useState([]);
   const [expanded, setExpanded] = useState(false);
   const [replying, setReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingReplies, setLoadingReplies] = useState(false);
+  const [showFullThread, setShowFullThread] = useState(false);
+
+  const parts = thread.parts || [thread.body];
+  const hasMoreParts = parts.length > 1 && !showFullThread;
 
   const loadReplies = async () => {
     if (expanded) { setExpanded(false); return; }
@@ -311,32 +425,68 @@ function ThreadPost({ thread, onDelete, user }) {
     setReplies(prev => prev.filter(r => r.id !== reply.id));
   };
 
+  const displayParts = showFullThread ? parts : [parts[0]];
+
   return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px", marginBottom: 10, animation: "fadeUp 0.3s ease both" }}>
-      {/* Main post */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: C.textLight }}>{timeAgo(thread.created_at)}</div>
-        <button onClick={() => onDelete(thread)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 10, overflow: "hidden", animation: "fadeUp 0.3s ease both" }}>
+      {/* Thread parts */}
+      <div style={{ padding: "16px 16px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: C.textLight }}>{timeAgo(thread.created_at)}{parts.length > 1 ? ` · ${parts.length} parts` : ""}</div>
+          <button onClick={() => onDelete(thread)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+        </div>
+
+        {displayParts.map((part, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, marginBottom: i < displayParts.length - 1 ? 0 : 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.accentDark }} />
+              </div>
+              {(i < displayParts.length - 1 || (hasMoreParts)) && (
+                <div style={{ width: 2, flex: 1, background: C.accentLight, minHeight: 16, margin: "3px 0" }} />
+              )}
+            </div>
+            <div style={{ flex: 1, paddingBottom: i < displayParts.length - 1 ? 12 : 0 }}>
+              {parts.length > 1 && <div style={{ fontSize: 9, color: C.textLight, marginBottom: 4, letterSpacing: "0.08em" }}>part {i + 1}</div>}
+              <div style={{ fontSize: 15, color: C.text, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{part}</div>
+            </div>
+          </div>
+        ))}
+
+        {/* Show more parts */}
+        {hasMoreParts && (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <div style={{ width: 28, display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 2, height: 8, background: C.accentLight }} />
+            </div>
+            <button onClick={() => setShowFullThread(true)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              show {parts.length - 1} more {parts.length - 1 === 1 ? "part" : "parts"} ↓
+            </button>
+          </div>
+        )}
+        {showFullThread && parts.length > 1 && (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+            <div style={{ width: 28 }} />
+            <button onClick={() => setShowFullThread(false)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>collapse ↑</button>
+          </div>
+        )}
       </div>
-      <div style={{ fontSize: 15, color: C.text, lineHeight: 1.65, whiteSpace: "pre-wrap", marginBottom: 14 }}>{thread.body}</div>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-        <button onClick={() => setReplying(p => !p)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
-          ↩ reply
-        </button>
+      <div style={{ padding: "0 16px 12px", display: "flex", gap: 16, alignItems: "center", borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+        <button onClick={() => setReplying(p => !p)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>↩ reply</button>
         {thread.reply_count > 0 && (
           <button onClick={loadReplies} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            {loadingReplies ? <Spinner size={12} /> : (expanded ? "hide replies" : `${thread.reply_count} ${thread.reply_count === 1 ? "reply" : "replies"}`)}
+            {loadingReplies ? <Spinner size={12} /> : (expanded ? "hide" : `${thread.reply_count} ${thread.reply_count === 1 ? "reply" : "replies"}`)}
           </button>
         )}
       </div>
 
       {/* Reply input */}
       {replying && (
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="continue the thought..." autoFocus rows={3}
-            style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6 }} />
+        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="add to this thought..." autoFocus rows={3}
+            style={{ width: "100%", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6, boxSizing: "border-box" }} />
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={() => { setReplying(false); setReplyText(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
             <button onClick={saveReply} disabled={saving || !replyText.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: replyText.trim() ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
@@ -348,9 +498,9 @@ function ThreadPost({ thread, onDelete, user }) {
 
       {/* Replies */}
       {expanded && replies.length > 0 && (
-        <div style={{ marginTop: 12, borderLeft: `2px solid ${C.accentLight}`, paddingLeft: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {replies.map(reply => (
-            <div key={reply.id}>
+            <div key={reply.id} style={{ paddingLeft: 12, borderLeft: `2px solid ${C.accentLight}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <div style={{ fontSize: 10, color: C.textLight }}>{timeAgo(reply.created_at)}</div>
                 <button onClick={() => deleteReply(reply)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
@@ -364,37 +514,21 @@ function ThreadPost({ thread, onDelete, user }) {
   );
 }
 
-// ── Threads Tab ────────────────────────────────────────────────────────────
-function ThreadsTab({ user }) {
+// ── Pulse Tab ──────────────────────────────────────────────────────────────
+function PulseTab({ user }) {
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [composing, setComposing] = useState(false);
-  const [newPost, setNewPost] = useState("");
-  const [posting, setPosting] = useState(false);
   const [showDelete, setShowDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    loadThreads();
-  }, []);
+  useEffect(() => { loadThreads(); }, []);
 
   const loadThreads = async () => {
     setLoading(true);
     const { data } = await sb.from("threads").select("*, thread_replies(count)").eq("user_id", user.id).order("created_at", { ascending: false });
     if (data) setThreads(data.map(t => ({ ...t, reply_count: t.thread_replies?.[0]?.count || 0 })));
     setLoading(false);
-  };
-
-  const postThread = async () => {
-    if (!newPost.trim()) return;
-    setPosting(true);
-    try {
-      const { data, error } = await sb.from("threads").insert({ user_id: user.id, body: newPost.trim() }).select().single();
-      if (error) throw error;
-      setThreads(prev => [{ ...data, reply_count: 0 }, ...prev]);
-      setNewPost(""); setComposing(false);
-    } catch (e) { alert("Failed: " + e.message); }
-    setPosting(false);
   };
 
   const deleteThread = async (thread) => {
@@ -407,54 +541,46 @@ function ThreadsTab({ user }) {
     setDeleting(false);
   };
 
+  if (composing) return (
+    <PulseComposer
+      user={user}
+      onPosted={(thread) => { setThreads(prev => [thread, ...prev]); setComposing(false); }}
+      onCancel={() => setComposing(false)}
+    />
+  );
+
   return (
     <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
-      {/* Compose */}
-      {composing ? (
-        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="what's on your mind?" autoFocus rows={4}
-            style={{ width: "100%", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.65, boxSizing: "border-box" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: C.textLight }}>{newPost.length} chars</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setComposing(false); setNewPost(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
-              <button onClick={postThread} disabled={posting || !newPost.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: newPost.trim() ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
-                {posting ? <Spinner size={14} color="#fff" /> : "post"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <button onClick={() => setComposing(true)} style={{ width: "100%", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.textLight, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-            what's on your mind?
-          </button>
-        </div>
-      )}
+      {/* Compose trigger */}
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+        <button onClick={() => setComposing(true)} style={{ width: "100%", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 16px", color: C.textLight, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s" }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+          onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+          what's on your mind?
+        </button>
+      </div>
 
-      {/* Feed */}
       {loading ? (
         <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
       ) : threads.length === 0 ? (
         <div style={{ padding: "60px 20px", textAlign: "center" }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>💭</div>
           <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>your thoughts live here</div>
-          <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap above to post your first thought</div>
+          <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap above to post your first pulse</div>
         </div>
       ) : (
         <div style={{ padding: "10px 16px" }}>
           {threads.map(thread => (
-            <ThreadPost key={thread.id} thread={thread} user={user} onDelete={(t) => setShowDelete(t)} />
+            <PulseCard key={thread.id} thread={thread} user={user} onDelete={(t) => setShowDelete(t)} />
           ))}
         </div>
       )}
 
-      {/* Delete confirm */}
       {showDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
-          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.dangerLight, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🗑</div>
-            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this thread?</div>
+          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑</div>
+            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this pulse?</div>
             <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This and all its replies will be gone forever.</div>
             <div style={{ display: "flex", gap: 9 }}>
               <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>keep it</button>
@@ -510,19 +636,16 @@ function InvitePanel({ onClose }) {
 function SwipeVideo({ entry, isActive }) {
   const videoRef = useRef(null);
   const [videoUrl, setVideoUrl] = useState(null);
-
   useEffect(() => {
     if (!entry.video_path) return;
     sb.storage.from("videos").createSignedUrl(entry.video_path, 3600).then(({ data }) => { if (data?.signedUrl) setVideoUrl(data.signedUrl); });
   }, [entry.video_path]);
-
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !videoUrl) return;
     if (isActive) { vid.muted = false; vid.currentTime = 0; vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); }); }
     else { vid.muted = true; vid.pause(); vid.currentTime = 0; }
   }, [isActive, videoUrl]);
-
   const moods = entry.moods || [];
   return (
     <div style={{ position: "absolute", inset: 0 }}>
@@ -578,7 +701,6 @@ export default function App() {
   const chunksRef = useRef([]);
   const elapsedRef = useRef(null);
   const fileInputRef = useRef(null);
-  const uploadAbortRef = useRef(null);
   const swipeContainerRef = useRef(null);
   const touchStartY = useRef(null);
   const touchStartX = useRef(null);
@@ -624,7 +746,6 @@ export default function App() {
   }, [stream]);
 
   const discard = () => {
-    if (uploadAbortRef.current) { uploadAbortRef.current.abort(); uploadAbortRef.current = null; }
     stopStream();
     if (previewURL) URL.revokeObjectURL(previewURL);
     setPreviewBlob(null); setPreviewURL(null);
@@ -757,8 +878,7 @@ export default function App() {
   const filteredEntries = filterMood === "all" ? entries : entries.filter(e => (e.moods || []).includes(filterMood));
   const usedMoods = [...new Set(entries.flatMap(e => e.moods || []))];
   const isOwner = user?.email === OWNER_EMAIL;
-
-  const TABS = ["video", "writing", "threads"];
+  const TABS = ["video", "writing", "pulse"];
 
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -795,12 +915,12 @@ export default function App() {
           <div style={{ padding: "16px 20px 0", display: "flex", flexShrink: 0 }}>
             {TABS.map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "10px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? C.accentDark : C.border}`, color: tab === t ? C.accentDark : C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 500 : 400, transition: "all 0.15s" }}>
-                {t === "video" ? "videos" : t === "writing" ? "writing" : "threads"}
+                {t === "video" ? "videos" : t === "writing" ? "writing" : "pulse"}
               </button>
             ))}
           </div>
 
-          {/* ── VIDEO TAB ── */}
+          {/* VIDEO TAB */}
           {tab === "video" && (<>
             {usedMoods.length > 0 && (
               <div style={{ padding: "10px 20px 8px", display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
@@ -843,7 +963,7 @@ export default function App() {
             </div>
           </>)}
 
-          {/* ── WRITING TAB ── */}
+          {/* WRITING TAB */}
           {tab === "writing" && (
             <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
               {loadingWritings ? <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
@@ -881,8 +1001,8 @@ export default function App() {
             </div>
           )}
 
-          {/* ── THREADS TAB ── */}
-          {tab === "threads" && <ThreadsTab user={user} />}
+          {/* PULSE TAB */}
+          {tab === "pulse" && <PulseTab user={user} />}
 
           {/* FAB */}
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", pointerEvents: "none", zIndex: 100 }}>
@@ -897,7 +1017,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {tab !== "threads" && (
+              {tab !== "pulse" && (
                 <button onClick={() => {
                   if (tab === "writing") { setShowFABMenu(false); setView("writeNew"); }
                   else setShowFABMenu(p => !p);
@@ -911,7 +1031,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── SWIPE ── */}
+      {/* SWIPE */}
       {view === "swipe" && filteredEntries.length > 0 && (
         <div ref={swipeContainerRef} style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden", touchAction: "none" }} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           {filteredEntries.map((entry, i) => (
@@ -937,7 +1057,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── RECORD ── */}
+      {/* RECORD */}
       {view === "record" && (
         <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 }}>
@@ -1005,7 +1125,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── DELETE ── */}
+      {/* DELETE */}
       {showDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
           <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
