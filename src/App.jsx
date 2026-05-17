@@ -6,12 +6,22 @@ const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 const OWNER_EMAIL = "yolibaby14@gmail.com";
 
+// ── Editorial B&W Design Tokens ────────────────────────────────────────────
 const C = {
-  bg: "#f7f5fb", bgCard: "#ffffff", bgInput: "#f4f1f9",
-  border: "#e8e2f4", accent: "#9b8ab4", accentLight: "#d4c8e8",
-  accentDark: "#6b5a8e", text: "#1e1428", textMid: "#7a6e8a",
-  textLight: "#b8a8cc", danger: "#c4637a", dangerLight: "#f9eef1",
-  rec: "#e05b73", line: "#ede8f5",
+  bg: "#ffffff",
+  bgOff: "#f8f8f8",
+  bgInput: "#f5f5f5",
+  border: "#e8e8e8",
+  borderDark: "#222",
+  text: "#111111",
+  textMid: "#555555",
+  textLight: "#999999",
+  accent: "#111111",
+  accentLight: "#f0f0f0",
+  danger: "#cc3333",
+  dangerLight: "#fff0f0",
+  rec: "#cc3333",
+  line: "#ebebeb",
 };
 
 const DEFAULT_MOODS = ["✨ hopeful","💭 reflective","🌊 overwhelmed","🔥 energized","🌿 peaceful","🌧 heavy","🎉 joyful","😶 numb"];
@@ -38,19 +48,33 @@ function timeAgo(ts) {
   const hrs = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (hrs < 24) return `${hrs}h ago`;
-  if (days < 7) return `${days}d ago`;
+  if (mins < 60) return `${mins}m`;
+  if (hrs < 24) return `${hrs}h`;
+  if (days < 7) return `${days}d`;
   return fmtDate(ts);
 }
 function generateCode() {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
-const Spinner = ({ size = 22, color = C.accent }) => (
-  <div style={{ width: size, height: size, border: `2px solid ${C.accentLight}`, borderTop: `2px solid ${color}`, borderRadius: "50%", animation: "spin 0.75s linear infinite", flexShrink: 0 }} />
+// ── Logo: Two overlapping circles with play ────────────────────────────────
+const MomentزLogo = ({ size = 36, dark = true }) => {
+  const fill = dark ? "#111" : "#fff";
+  const bg = dark ? "#fff" : "#111";
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60">
+      <circle cx="22" cy="30" r="16" fill={fill} opacity="0.85"/>
+      <circle cx="38" cy="30" r="16" fill={fill} opacity="0.85"/>
+      <polygon points="26,23 26,37 40,30" fill={bg}/>
+    </svg>
+  );
+};
+
+const Spinner = ({ size = 22, color = "#111" }) => (
+  <div style={{ width: size, height: size, border: `2px solid #e8e8e8`, borderTop: `2px solid ${color}`, borderRadius: "50%", animation: "spin 0.75s linear infinite", flexShrink: 0 }} />
 );
 
+// ── Mood Picker ────────────────────────────────────────────────────────────
 function MoodPicker({ value = [], onChange, customMoods = [], onAddCustomMood }) {
   const [adding, setAdding] = useState(false);
   const [newMood, setNewMood] = useState("");
@@ -62,21 +86,30 @@ function MoodPicker({ value = [], onChange, customMoods = [], onAddCustomMood })
   };
   return (
     <div>
-      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: C.textLight, textTransform: "uppercase", marginBottom: 8 }}>
-        mood {value.length > 0 && <span style={{ color: C.accent }}>· {value.length} selected</span>}
+      <div style={{ fontSize: 9, letterSpacing: "0.2em", color: C.textLight, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>
+        MOOD {value.length > 0 && <span style={{ color: C.text }}>· {value.length}</span>}
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {allMoods.map(m => (
-          <button key={m} onClick={() => toggle(m)} style={{ background: value.includes(m) ? C.accentDark : C.bgInput, border: `1px solid ${value.includes(m) ? C.accentDark : C.border}`, color: value.includes(m) ? "#fff" : C.textMid, borderRadius: 20, padding: "5px 11px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>{m}</button>
+          <button key={m} onClick={() => toggle(m)} style={{
+            background: value.includes(m) ? C.text : C.bgInput,
+            border: `1px solid ${value.includes(m) ? C.text : C.border}`,
+            color: value.includes(m) ? "#fff" : C.textMid,
+            borderRadius: 4, padding: "5px 11px", fontSize: 11,
+            cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
+            letterSpacing: "0.02em",
+          }}>{m}</button>
         ))}
         {adding ? (
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <input autoFocus value={newMood} onChange={e => setNewMood(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }} placeholder="type a mood..." style={{ background: C.bgInput, border: `1px solid ${C.accent}`, borderRadius: 20, padding: "5px 11px", fontSize: 11, fontFamily: "inherit", color: C.text, outline: "none", width: 110 }} />
-            <button onClick={handleAdd} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+            <input autoFocus value={newMood} onChange={e => setNewMood(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+              placeholder="add mood..." style={{ background: C.bgInput, border: `1px solid ${C.text}`, borderRadius: 4, padding: "5px 11px", fontSize: 11, fontFamily: "inherit", color: C.text, outline: "none", width: 100 }} />
+            <button onClick={handleAdd} style={{ background: C.text, border: "none", color: "#fff", borderRadius: 4, width: 22, height: 22, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
             <button onClick={() => setAdding(false)} style={{ background: "none", border: "none", color: C.textLight, cursor: "pointer", fontSize: 16 }}>×</button>
           </div>
         ) : (
-          <button onClick={() => setAdding(true)} style={{ background: "none", border: `1px dashed ${C.border}`, color: C.textLight, borderRadius: 20, padding: "5px 11px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+ add</button>
+          <button onClick={() => setAdding(true)} style={{ background: "none", border: `1px dashed ${C.border}`, color: C.textLight, borderRadius: 4, padding: "5px 11px", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+ add</button>
         )}
       </div>
     </div>
@@ -99,8 +132,18 @@ function AuthScreen() {
     if (code) { setInviteCode(code.toUpperCase()); setMode("signup"); }
   }, []);
 
-  const inputStyle = { width: "100%", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", color: C.text, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-  const btnPrimary = { width: "100%", padding: "13px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 };
+  const inputStyle = {
+    width: "100%", background: C.bgInput, border: `1px solid ${C.border}`,
+    borderRadius: 6, padding: "12px 14px", color: C.text, fontSize: 14,
+    fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+    transition: "border-color 0.15s",
+  };
+  const btnPrimary = {
+    width: "100%", padding: "13px", borderRadius: 6, background: C.text,
+    border: "none", color: "#fff", fontSize: 13, cursor: "pointer",
+    fontFamily: "inherit", fontWeight: 600, letterSpacing: "0.08em",
+    textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  };
 
   const handleSignup = async () => {
     setError(""); setLoading(true);
@@ -114,14 +157,12 @@ function AuthScreen() {
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
-
   const handleLogin = async () => {
     setError(""); setLoading(true);
     const { error: err } = await sb.auth.signInWithPassword({ email, password });
     if (err) setError(err.message);
     setLoading(false);
   };
-
   const handleReset = async () => {
     setError(""); setLoading(true);
     const { error: err } = await sb.auth.resetPasswordForEmail(email, { redirectTo: "https://momentz.yolandamcleod.com" });
@@ -133,71 +174,80 @@ function AuthScreen() {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 360, animation: "slideUp 0.45s ease both" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ width: 22, height: 22, borderRadius: "50%", background: C.accentDark }} />
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: C.text, margin: "0 auto 18px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <MomentزLogo size={38} dark={false} />
           </div>
-          <h1 style={{ margin: 0, fontSize: 36, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em" }}>momentz</h1>
-          <p style={{ margin: "8px 0 0", fontSize: 13, color: C.textLight, fontStyle: "italic", fontFamily: "Georgia, serif" }}>your story, your way</p>
+          <h1 style={{ margin: 0, fontSize: 38, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em" }}>Momentz</h1>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: C.textLight, letterSpacing: "0.2em", textTransform: "uppercase" }}>Private Journal</p>
         </div>
-        <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 24, boxShadow: "0 4px 24px rgba(155,138,180,0.08)" }}>
+
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
           {mode === "login" && (<>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>email</div>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={inputStyle} />
+              <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Email</div>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>password</div>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} placeholder="••••••••" style={inputStyle} />
+              <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Password</div>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} placeholder="••••••••" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
-            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center", background: C.dangerLight, padding: "8px 12px", borderRadius: 8 }}>{error}</div>}
-            <button onClick={handleLogin} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "sign in"}</button>
+            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, padding: "8px 12px", background: C.dangerLight, borderRadius: 6 }}>{error}</div>}
+            <button onClick={handleLogin} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "Sign In"}</button>
             <div style={{ marginTop: 16, display: "flex", justifyContent: "center", gap: 20 }}>
-              <button onClick={() => { setMode("signup"); setError(""); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>have an invite?</button>
-              <button onClick={() => { setMode("reset"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>forgot password</button>
+              <button onClick={() => { setMode("signup"); setError(""); }} style={{ background: "none", border: "none", color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.05em" }}>Have an invite?</button>
+              <button onClick={() => { setMode("reset"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Forgot password</button>
             </div>
           </>)}
+
           {mode === "signup" && (<>
-            <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16, textAlign: "center" }}>enter your invite code to create an account</div>
+            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 16, textAlign: "center", letterSpacing: "0.05em" }}>Enter your invite code to create an account</div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>invite code</div>
-              <input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" style={{ ...inputStyle, letterSpacing: "0.2em", fontWeight: 500 }} />
+              <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Invite Code</div>
+              <input type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} placeholder="XXXXXXXX" style={{ ...inputStyle, letterSpacing: "0.25em", fontWeight: 600 }}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>email</div>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={inputStyle} />
+              <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Email</div>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: C.textMid, marginBottom: 6 }}>password</div>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignup()} placeholder="••••••••" style={inputStyle} />
+              <div style={{ fontSize: 10, color: C.textMid, marginBottom: 6, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600 }}>Password</div>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSignup()} placeholder="••••••••" style={inputStyle}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
-            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center", background: C.dangerLight, padding: "8px 12px", borderRadius: 8 }}>{error}</div>}
-            <button onClick={handleSignup} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "create account"}</button>
+            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, padding: "8px 12px", background: C.dangerLight, borderRadius: 6 }}>{error}</div>}
+            <button onClick={handleSignup} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "Create Account"}</button>
             <div style={{ marginTop: 14, textAlign: "center" }}>
-              <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
+              <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Back to sign in</button>
             </div>
           </>)}
+
           {mode === "reset" && (resetSent ? (
             <div style={{ textAlign: "center", padding: "16px 0" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>📬</div>
-              <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16 }}>reset link sent to {email}</div>
-              <button onClick={() => { setMode("login"); setResetSent(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
+              <div style={{ fontSize: 34, marginBottom: 12 }}>📬</div>
+              <div style={{ fontSize: 13, color: C.textMid, marginBottom: 16 }}>Reset link sent to {email}</div>
+              <button onClick={() => { setMode("login"); setResetSent(false); }} style={{ background: "none", border: "none", color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Back to sign in</button>
             </div>
           ) : (<>
-            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14, textAlign: "center" }}>enter your email to receive a reset link</div>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ ...inputStyle, marginBottom: 12 }} />
-            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12, textAlign: "center" }}>{error}</div>}
-            <button onClick={handleReset} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "send reset link"}</button>
+            <div style={{ fontSize: 12, color: C.textMid, marginBottom: 14, textAlign: "center" }}>Enter your email to receive a reset link</div>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" style={{ ...inputStyle, marginBottom: 12 }}
+              onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
+            {error && <div style={{ fontSize: 12, color: C.danger, marginBottom: 12 }}>{error}</div>}
+            <button onClick={handleReset} disabled={loading} style={btnPrimary}>{loading ? <Spinner size={16} color="#fff" /> : "Send Reset Link"}</button>
             <div style={{ marginTop: 14, textAlign: "center" }}>
-              <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← back to sign in</button>
+              <button onClick={() => { setMode("login"); setError(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Back to sign in</button>
             </div>
           </>))}
         </div>
-        <div style={{ marginTop: 20, textAlign: "center", fontSize: 10, color: C.textLight, letterSpacing: "0.1em", textTransform: "uppercase" }}>private · invite only</div>
+        <div style={{ marginTop: 18, textAlign: "center", fontSize: 9, color: C.textLight, letterSpacing: "0.18em", textTransform: "uppercase" }}>Private · Invite Only</div>
       </div>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
-        input::placeholder { color: ${C.textLight}; }
+        input::placeholder { color: #bbb; }
         @keyframes slideUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
@@ -217,8 +267,7 @@ function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }
     if (!body.trim()) return;
     setSaving(true);
     try {
-      const entry = { user_id: user.id, title: title.trim(), body: body.trim(), moods, word_count: body.trim().split(/\s+/).filter(Boolean).length };
-      const { data, error } = await sb.from("writings").insert(entry).select().single();
+      const { data, error } = await sb.from("writings").insert({ user_id: user.id, title: title.trim(), body: body.trim(), moods, word_count: body.trim().split(/\s+/).filter(Boolean).length }).select().single();
       if (error) throw error;
       onSaved(data);
     } catch (e) { alert("Save failed: " + e.message); }
@@ -226,23 +275,23 @@ function WritingEditor({ user, customMoods, onAddCustomMood, onSaved, onCancel }
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", flexDirection: "column", zIndex: 200 }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
-        <div style={{ fontSize: 11, color: C.textLight }}>{fmtDate(new Date().toISOString())}</div>
-        <button onClick={save} disabled={saving || !body.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: body.trim() ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
-          {saving ? <Spinner size={14} color="#fff" /> : "save"}
+        <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.15em", textTransform: "uppercase" }}>{fmtDate(new Date().toISOString())}</div>
+        <button onClick={save} disabled={saving || !body.trim()} style={{ background: C.text, border: "none", color: "#fff", borderRadius: 4, padding: "7px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", opacity: body.trim() ? 1 : 0.3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+          {saving ? <Spinner size={14} color="#fff" /> : "Save"}
         </button>
       </div>
       <div style={{ padding: "12px 20px 10px", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
         <MoodPicker value={moods} onChange={setMoods} customMoods={customMoods} onAddCustomMood={onAddCustomMood} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "56px" }}>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="title (optional)" style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, padding: "20px 0 8px", lineHeight: "1.3", boxSizing: "border-box" }} />
-        <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="write anything..." autoFocus style={{ width: "100%", background: "none", border: "none", outline: "none", resize: "none", fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, minHeight: "60vh", boxSizing: "border-box", padding: "4px 0" }} />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" style={{ width: "100%", background: "none", border: "none", outline: "none", fontSize: 24, fontWeight: 600, fontFamily: "Georgia, serif", color: C.text, padding: "20px 0 8px", lineHeight: "1.3", boxSizing: "border-box" }} />
+        <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write anything..." autoFocus style={{ width: "100%", background: "none", border: "none", outline: "none", resize: "none", fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, minHeight: "60vh", boxSizing: "border-box", padding: "4px 0" }} />
       </div>
       <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ fontSize: 11, color: C.textLight }}>{body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0} words</div>
+        <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.1em" }}>{body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0} WORDS</div>
       </div>
     </div>
   );
@@ -253,23 +302,23 @@ function WritingViewer({ entry, onBack, onDelete }) {
   const lineHeight = 32;
   const moods = entry.moods || [];
   return (
-    <div style={{ position: "fixed", inset: 0, background: C.bgCard, display: "flex", flexDirection: "column", zIndex: 200 }}>
+    <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", flexDirection: "column", zIndex: 200 }}>
       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>← back</button>
-        <div style={{ fontSize: 11, color: C.textLight }}>{fmtDate(entry.created_at)} · {fmtTime(entry.created_at)}</div>
-        <button onClick={() => onDelete(entry)} style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+        <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.12em", textTransform: "uppercase" }}>{fmtDate(entry.created_at)}</div>
+        <button onClick={() => onDelete(entry)} style={{ background: "none", border: "none", color: C.danger, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em", textTransform: "uppercase" }}>Delete</button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 40px", backgroundImage: `repeating-linear-gradient(transparent, transparent ${lineHeight - 1}px, ${C.line} ${lineHeight - 1}px, ${C.line} ${lineHeight}px)`, backgroundSize: `100% ${lineHeight}px`, backgroundPositionY: "80px" }}>
         {moods.length > 0 && (
           <div style={{ paddingTop: 16, marginBottom: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {moods.map(m => <div key={m} style={{ display: "inline-block", background: C.accentLight, border: `1px solid ${C.border}`, color: C.accentDark, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{m}</div>)}
+            {moods.map(m => <div key={m} style={{ background: C.text, color: "#fff", borderRadius: 4, padding: "3px 10px", fontSize: 10, letterSpacing: "0.05em" }}>{m}</div>)}
           </div>
         )}
-        {entry.title && <h2 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, lineHeight: 1.3 }}>{entry.title}</h2>}
+        {entry.title && <h2 style={{ margin: "16px 0 8px", fontSize: 24, fontWeight: 600, fontFamily: "Georgia, serif", color: C.text }}>{entry.title}</h2>}
         <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, lineHeight: `${lineHeight}px`, whiteSpace: "pre-wrap", paddingTop: 4 }}>{entry.body}</div>
       </div>
       <div style={{ padding: "10px 20px", borderTop: `1px solid ${C.border}`, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ fontSize: 11, color: C.textLight }}>{entry.word_count || 0} words</div>
+        <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.1em" }}>{entry.word_count || 0} WORDS</div>
       </div>
     </div>
   );
@@ -281,22 +330,9 @@ function PulseComposer({ user, onPosted, onCancel }) {
   const [posting, setPosting] = useState(false);
   const textareaRefs = useRef([]);
 
-  const updatePart = (i, val) => {
-    const next = [...parts];
-    next[i] = val;
-    setParts(next);
-  };
-
-  const addPart = () => {
-    setParts(prev => [...prev, ""]);
-    setTimeout(() => textareaRefs.current[parts.length]?.focus(), 80);
-  };
-
-  const removePart = (i) => {
-    if (parts.length === 1) return;
-    setParts(prev => prev.filter((_, idx) => idx !== i));
-  };
-
+  const updatePart = (i, val) => { const next = [...parts]; next[i] = val; setParts(next); };
+  const addPart = () => { setParts(prev => [...prev, ""]); setTimeout(() => textareaRefs.current[parts.length]?.focus(), 80); };
+  const removePart = (i) => { if (parts.length === 1) return; setParts(prev => prev.filter((_, idx) => idx !== i)); };
   const hasContent = parts.some(p => p.trim());
 
   const handlePost = async () => {
@@ -304,12 +340,7 @@ function PulseComposer({ user, onPosted, onCancel }) {
     if (!filtered.length) return;
     setPosting(true);
     try {
-      // Save thread with parts as JSON array
-      const { data, error } = await sb.from("threads").insert({
-        user_id: user.id,
-        body: filtered[0],
-        parts: filtered,
-      }).select().single();
+      const { data, error } = await sb.from("threads").insert({ user_id: user.id, body: filtered[0], parts: filtered }).select().single();
       if (error) throw error;
       onPosted({ ...data, reply_count: 0 });
     } catch (e) { alert("Failed: " + e.message); }
@@ -318,66 +349,47 @@ function PulseComposer({ user, onPosted, onCancel }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: C.bg, display: "flex", flexDirection: "column", zIndex: 300 }}>
-      {/* Header */}
-      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0, background: C.bgCard }}>
+      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: C.textLight, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
-        <div style={{ fontSize: 12, color: C.textMid, fontWeight: 500 }}>new pulse</div>
-        <button onClick={handlePost} disabled={posting || !hasContent} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "7px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: hasContent ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
-          {posting ? <Spinner size={14} color="#fff" /> : "post"}
+        <div style={{ fontSize: 10, color: C.textMid, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 600 }}>New Pulse</div>
+        <button onClick={handlePost} disabled={posting || !hasContent} style={{ background: C.text, border: "none", color: "#fff", borderRadius: 4, padding: "7px 18px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", opacity: hasContent ? 1 : 0.3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+          {posting ? <Spinner size={14} color="#fff" /> : "Post"}
         </button>
       </div>
 
-      {/* Parts */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 100px" }}>
         {parts.map((part, i) => (
           <div key={i} style={{ display: "flex", gap: 12, marginBottom: 0 }}>
-            {/* Thread line indicator */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <div style={{ width: 12, height: 12, borderRadius: "50%", background: C.accentDark }} />
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.text, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#fff" }} />
               </div>
-              {i < parts.length - 1 && (
-                <div style={{ width: 2, flex: 1, background: C.accentLight, minHeight: 24, margin: "4px 0" }} />
-              )}
+              {i < parts.length - 1 && <div style={{ width: 2, flex: 1, background: C.border, minHeight: 24, margin: "4px 0" }} />}
             </div>
-
-            {/* Input */}
             <div style={{ flex: 1, paddingBottom: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.1em" }}>
-                  {i === 0 ? "start here" : `part ${i + 1}`}
-                </div>
-                {parts.length > 1 && (
-                  <button onClick={() => removePart(i)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
-                )}
+                <div style={{ fontSize: 9, color: C.textLight, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600 }}>{i === 0 ? "Start here" : `Part ${i + 1}`}</div>
+                {parts.length > 1 && <button onClick={() => removePart(i)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>}
               </div>
-              <textarea
-                ref={el => textareaRefs.current[i] = el}
-                value={part}
-                onChange={e => updatePart(i, e.target.value)}
-                placeholder={i === 0 ? "what's on your mind?" : "continue the thought..."}
-                autoFocus={i === 0}
-                rows={4}
-                style={{ width: "100%", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.65, boxSizing: "border-box", transition: "border-color 0.15s" }}
-                onFocus={e => e.target.style.borderColor = C.accent}
-                onBlur={e => e.target.style.borderColor = C.border}
-              />
+              <textarea ref={el => textareaRefs.current[i] = el} value={part} onChange={e => updatePart(i, e.target.value)}
+                placeholder={i === 0 ? "What's on your mind?" : "Continue the thought..."} autoFocus={i === 0} rows={4}
+                style={{ width: "100%", background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 8, padding: "12px 14px", color: C.text, fontSize: 15, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.65, boxSizing: "border-box", transition: "border-color 0.15s" }}
+                onFocus={e => e.target.style.borderColor = C.text} onBlur={e => e.target.style.borderColor = C.border} />
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-                <div style={{ fontSize: 10, color: C.textLight }}>{part.length} chars</div>
+                <div style={{ fontSize: 9, color: C.textLight, letterSpacing: "0.1em" }}>{part.length} CHARS</div>
               </div>
             </div>
           </div>
         ))}
 
-        {/* Add part button */}
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ width: 34, display: "flex", justifyContent: "center" }}>
-            <div style={{ width: 2, height: 20, background: C.accentLight }} />
+          <div style={{ width: 32, display: "flex", justifyContent: "center" }}>
+            <div style={{ width: 2, height: 16, background: C.border }} />
           </div>
-          <button onClick={addPart} style={{ background: "none", border: `1px dashed ${C.border}`, color: C.accent, borderRadius: 20, padding: "8px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.accentLight; e.currentTarget.style.borderColor = C.accent; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = C.border; }}>
-            + add part
+          <button onClick={addPart} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "8px 18px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.text; e.currentTarget.style.color = C.text; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; }}>
+            + Add Part
           </button>
         </div>
       </div>
@@ -385,7 +397,7 @@ function PulseComposer({ user, onPosted, onCancel }) {
   );
 }
 
-// ── Pulse Thread Card ──────────────────────────────────────────────────────
+// ── Pulse Card ─────────────────────────────────────────────────────────────
 function PulseCard({ thread, onDelete, user }) {
   const [replies, setReplies] = useState([]);
   const [expanded, setExpanded] = useState(false);
@@ -396,7 +408,6 @@ function PulseCard({ thread, onDelete, user }) {
   const [showFullThread, setShowFullThread] = useState(false);
 
   const parts = thread.parts || [thread.body];
-  const hasMoreParts = parts.length > 1 && !showFullThread;
 
   const loadReplies = async () => {
     if (expanded) { setExpanded(false); return; }
@@ -428,81 +439,74 @@ function PulseCard({ thread, onDelete, user }) {
   const displayParts = showFullThread ? parts : [parts[0]];
 
   return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, marginBottom: 10, overflow: "hidden", animation: "fadeUp 0.3s ease both" }}>
-      {/* Thread parts */}
-      <div style={{ padding: "16px 16px 0" }}>
+    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, marginBottom: 10, overflow: "hidden", animation: "fadeUp 0.3s ease both" }}>
+      <div style={{ padding: "14px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: C.textLight }}>{timeAgo(thread.created_at)}{parts.length > 1 ? ` · ${parts.length} parts` : ""}</div>
-          <button onClick={() => onDelete(thread)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+          <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.08em" }}>{timeAgo(thread.created_at)}{parts.length > 1 ? ` · ${parts.length} PARTS` : ""}</div>
+          <button onClick={() => onDelete(thread)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase" }}>delete</button>
         </div>
 
         {displayParts.map((part, i) => (
-          <div key={i} style={{ display: "flex", gap: 10, marginBottom: i < displayParts.length - 1 ? 0 : 12 }}>
+          <div key={i} style={{ display: "flex", gap: 10, marginBottom: 0 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.accentLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.accentDark }} />
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
               </div>
-              {(i < displayParts.length - 1 || (hasMoreParts)) && (
-                <div style={{ width: 2, flex: 1, background: C.accentLight, minHeight: 16, margin: "3px 0" }} />
+              {(i < displayParts.length - 1 || (!showFullThread && parts.length > 1)) && (
+                <div style={{ width: 2, flex: 1, background: C.border, minHeight: 16, margin: "3px 0" }} />
               )}
             </div>
             <div style={{ flex: 1, paddingBottom: i < displayParts.length - 1 ? 12 : 0 }}>
-              {parts.length > 1 && <div style={{ fontSize: 9, color: C.textLight, marginBottom: 4, letterSpacing: "0.08em" }}>part {i + 1}</div>}
-              <div style={{ fontSize: 15, color: C.text, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{part}</div>
+              {parts.length > 1 && <div style={{ fontSize: 9, color: C.textLight, marginBottom: 4, letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600 }}>Part {i + 1}</div>}
+              <div style={{ fontSize: 15, color: C.text, lineHeight: 1.65, whiteSpace: "pre-wrap", marginBottom: 12 }}>{part}</div>
             </div>
           </div>
         ))}
 
-        {/* Show more parts */}
-        {hasMoreParts && (
+        {!showFullThread && parts.length > 1 && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
-            <div style={{ width: 28, display: "flex", justifyContent: "center" }}>
-              <div style={{ width: 2, height: 8, background: C.accentLight }} />
-            </div>
-            <button onClick={() => setShowFullThread(true)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              show {parts.length - 1} more {parts.length - 1 === 1 ? "part" : "parts"} ↓
+            <div style={{ width: 26 }} />
+            <button onClick={() => setShowFullThread(true)} style={{ background: "none", border: "none", color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}>
+              Show {parts.length - 1} more {parts.length - 1 === 1 ? "part" : "parts"} ↓
             </button>
           </div>
         )}
         {showFullThread && parts.length > 1 && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
-            <div style={{ width: 28 }} />
-            <button onClick={() => setShowFullThread(false)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>collapse ↑</button>
+            <div style={{ width: 26 }} />
+            <button onClick={() => setShowFullThread(false)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Collapse ↑</button>
           </div>
         )}
       </div>
 
-      {/* Actions */}
-      <div style={{ padding: "0 16px 12px", display: "flex", gap: 16, alignItems: "center", borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-        <button onClick={() => setReplying(p => !p)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>↩ reply</button>
+      <div style={{ padding: "8px 16px 12px", display: "flex", gap: 16, borderTop: `1px solid ${C.border}` }}>
+        <button onClick={() => setReplying(p => !p)} style={{ background: "none", border: "none", color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}>↩ Reply</button>
         {thread.reply_count > 0 && (
-          <button onClick={loadReplies} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            {loadingReplies ? <Spinner size={12} /> : (expanded ? "hide" : `${thread.reply_count} ${thread.reply_count === 1 ? "reply" : "replies"}`)}
+          <button onClick={loadReplies} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.05em" }}>
+            {loadingReplies ? <Spinner size={12} /> : (expanded ? "Hide" : `${thread.reply_count} ${thread.reply_count === 1 ? "reply" : "replies"}`)}
           </button>
         )}
       </div>
 
-      {/* Reply input */}
       {replying && (
-        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="add to this thought..." autoFocus rows={3}
-            style={{ width: "100%", background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6, boxSizing: "border-box" }} />
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={() => { setReplying(false); setReplyText(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
-            <button onClick={saveReply} disabled={saving || !replyText.trim()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 20, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", opacity: replyText.trim() ? 1 : 0.4, display: "flex", alignItems: "center", gap: 6 }}>
-              {saving ? <Spinner size={12} color="#fff" /> : "post"}
+        <div style={{ padding: "0 16px 14px", borderTop: `1px solid ${C.border}` }}>
+          <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Add to this thought..." autoFocus rows={3}
+            style={{ width: "100%", background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6, boxSizing: "border-box", marginTop: 12 }} />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={() => { setReplying(false); setReplyText(""); }} style={{ background: "none", border: "none", color: C.textLight, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>cancel</button>
+            <button onClick={saveReply} disabled={saving || !replyText.trim()} style={{ background: C.text, border: "none", color: "#fff", borderRadius: 4, padding: "6px 16px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", opacity: replyText.trim() ? 1 : 0.3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+              {saving ? <Spinner size={12} color="#fff" /> : "Post"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Replies */}
       {expanded && replies.length > 0 && (
         <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {replies.map(reply => (
-            <div key={reply.id} style={{ paddingLeft: 12, borderLeft: `2px solid ${C.accentLight}` }}>
+            <div key={reply.id} style={{ paddingLeft: 12, borderLeft: `2px solid ${C.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <div style={{ fontSize: 10, color: C.textLight }}>{timeAgo(reply.created_at)}</div>
+                <div style={{ fontSize: 9, color: C.textLight, letterSpacing: "0.08em" }}>{timeAgo(reply.created_at)}</div>
                 <button onClick={() => deleteReply(reply)} style={{ background: "none", border: "none", color: C.textLight, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
               </div>
               <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{reply.body}</div>
@@ -541,51 +545,41 @@ function PulseTab({ user }) {
     setDeleting(false);
   };
 
-  if (composing) return (
-    <PulseComposer
-      user={user}
-      onPosted={(thread) => { setThreads(prev => [thread, ...prev]); setComposing(false); }}
-      onCancel={() => setComposing(false)}
-    />
-  );
+  if (composing) return <PulseComposer user={user} onPosted={(t) => { setThreads(prev => [t, ...prev]); setComposing(false); }} onCancel={() => setComposing(false)} />;
 
   return (
     <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
-      {/* Compose trigger */}
       <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-        <button onClick={() => setComposing(true)} style={{ width: "100%", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 16px", color: C.textLight, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s" }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+        <button onClick={() => setComposing(true)} style={{ width: "100%", background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 8, padding: "13px 16px", color: C.textLight, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s" }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = C.text}
           onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-          what's on your mind?
+          What's on your mind?
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
-      ) : threads.length === 0 ? (
-        <div style={{ padding: "60px 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 36, marginBottom: 14 }}>💭</div>
-          <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>your thoughts live here</div>
-          <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap above to post your first pulse</div>
-        </div>
-      ) : (
-        <div style={{ padding: "10px 16px" }}>
-          {threads.map(thread => (
-            <PulseCard key={thread.id} thread={thread} user={user} onDelete={(t) => setShowDelete(t)} />
-          ))}
-        </div>
-      )}
+      {loading ? <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
+        : threads.length === 0 ? (
+          <div style={{ padding: "60px 20px", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>💭</div>
+            <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>Your thoughts live here</div>
+            <div style={{ fontSize: 10, color: C.textLight, marginTop: 8, letterSpacing: "0.1em", textTransform: "uppercase" }}>Tap above to post your first pulse</div>
+          </div>
+        ) : (
+          <div style={{ padding: "10px 16px" }}>
+            {threads.map(thread => <PulseCard key={thread.id} thread={thread} user={user} onDelete={(t) => setShowDelete(t)} />)}
+          </div>
+        )}
 
       {showDelete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
-          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑</div>
-            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this pulse?</div>
-            <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This and all its replies will be gone forever.</div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 28, maxWidth: 300, width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗑</div>
+            <div style={{ fontSize: 15, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this pulse?</div>
+            <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This and all replies will be gone forever.</div>
             <div style={{ display: "flex", gap: 9 }}>
-              <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>keep it</button>
-              <button onClick={() => deleteThread(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {deleting ? <Spinner size={15} color={C.danger} /> : "delete"}
+              <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.bgOff, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Keep it</button>
+              <button onClick={() => deleteThread(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.danger, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {deleting ? <Spinner size={15} color="#fff" /> : "Delete"}
               </button>
             </div>
           </div>
@@ -609,19 +603,19 @@ function InvitePanel({ onClose }) {
   };
   const copy = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
-      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 340, width: "100%", animation: "popIn 0.22s ease" }}>
-        <div style={{ fontSize: 18, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>invite someone</div>
-        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>Generate a one-time link. It expires after use.</div>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 28, maxWidth: 340, width: "100%", animation: "popIn 0.22s ease" }}>
+        <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 6 }}>Invite Someone</div>
+        <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>Generate a one-time link. Expires after use.</div>
         {!link ? (
-          <button onClick={generate} disabled={generating} style={{ width: "100%", padding: "12px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {generating ? <Spinner size={16} color="#fff" /> : "generate invite link"}
+          <button onClick={generate} disabled={generating} style={{ width: "100%", padding: "12px", borderRadius: 6, background: C.text, border: "none", color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {generating ? <Spinner size={16} color="#fff" /> : "Generate Invite Link"}
           </button>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 11, color: C.textMid, wordBreak: "break-all", lineHeight: 1.5 }}>{link}</div>
-            <button onClick={copy} style={{ width: "100%", padding: "12px", borderRadius: 12, background: copied ? "#4caf7d" : C.accentDark, border: "none", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s" }}>{copied ? "✓ copied!" : "copy link"}</button>
-            <button onClick={generate} disabled={generating} style={{ width: "100%", padding: "10px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>generate another</button>
+            <div style={{ background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 11, color: C.textMid, wordBreak: "break-all", lineHeight: 1.5 }}>{link}</div>
+            <button onClick={copy} style={{ width: "100%", padding: "12px", borderRadius: 6, background: copied ? "#2d6a4f" : C.text, border: "none", color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, transition: "background 0.2s" }}>{copied ? "✓ Copied!" : "Copy Link"}</button>
+            <button onClick={generate} disabled={generating} style={{ width: "100%", padding: "10px", borderRadius: 6, background: C.bgOff, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase" }}>Generate Another</button>
           </div>
         )}
         <div style={{ marginTop: 16, textAlign: "center" }}>
@@ -651,16 +645,16 @@ function SwipeVideo({ entry, isActive }) {
     <div style={{ position: "absolute", inset: 0 }}>
       {videoUrl ? <video ref={videoRef} src={videoUrl} playsInline loop muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <div style={{ width: "100%", height: "100%", background: "#111", display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner color="#fff" /></div>}
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(20,10,30,0.9) 0%, transparent 50%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 50%)" }} />
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "24px 20px 52px" }}>
-        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>{fmtDate(entry.created_at)} · {fmtTime(entry.created_at)}</div>
+        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>{fmtDate(entry.created_at)} · {fmtTime(entry.created_at)}</div>
         {moods.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {moods.map(m => <div key={m} style={{ background: "rgba(155,138,180,0.3)", border: "1px solid rgba(212,200,232,0.3)", color: C.accentLight, borderRadius: 20, padding: "4px 12px", fontSize: 11 }}>{m}</div>)}
+            {moods.map(m => <div key={m} style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", borderRadius: 4, padding: "4px 10px", fontSize: 11, letterSpacing: "0.03em" }}>{m}</div>)}
           </div>
         )}
         {entry.note && <div style={{ fontSize: 14, lineHeight: 1.65, color: "rgba(255,255,255,0.85)", fontStyle: "italic", fontFamily: "Georgia, serif" }}>"{entry.note}"</div>}
-        {entry.duration > 0 && <div style={{ marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{fmtDur(entry.duration)}</div>}
+        {entry.duration > 0 && <div style={{ marginTop: 10, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>{fmtDur(entry.duration)}</div>}
       </div>
     </div>
   );
@@ -775,8 +769,7 @@ export default function App() {
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const MAX = 50 * 1024 * 1024;
-    if (file.size > MAX) { alert(`This file is ${(file.size / 1024 / 1024).toFixed(0)}MB. Please compress it to under 50MB before uploading.`); e.target.value = ""; return; }
+    if (file.size > 50 * 1024 * 1024) { alert(`This file is ${(file.size / 1024 / 1024).toFixed(0)}MB. Please compress it to under 50MB first.`); e.target.value = ""; return; }
     setPreviewBlob(file); setPreviewURL(URL.createObjectURL(file));
     e.target.value = "";
   };
@@ -801,17 +794,17 @@ export default function App() {
     if (mrRef.current && recording) { mrRef.current.stop(); clearInterval(elapsedRef.current); setRecording(false); }
   };
 
-  const generateThumbnail = (blobOrFile) => new Promise((resolve, reject) => {
+  const generateThumbnail = (b) => new Promise((resolve, reject) => {
     const vid = document.createElement("video");
-    const url = URL.createObjectURL(blobOrFile);
+    const url = URL.createObjectURL(b);
     vid.src = url; vid.muted = true; vid.currentTime = 1;
     vid.onloadeddata = () => { const c = document.createElement("canvas"); c.width = 480; c.height = 854; c.getContext("2d").drawImage(vid, 0, 0, 480, 854); resolve(c.toDataURL("image/jpeg", 0.7)); URL.revokeObjectURL(url); };
     vid.onerror = () => { URL.revokeObjectURL(url); reject(); };
   });
 
-  const getVideoDuration = (blobOrFile) => new Promise((resolve) => {
+  const getVideoDuration = (b) => new Promise((resolve) => {
     const vid = document.createElement("video");
-    const url = URL.createObjectURL(blobOrFile);
+    const url = URL.createObjectURL(b);
     vid.src = url; vid.muted = true;
     vid.onloadedmetadata = () => { resolve(Math.round(vid.duration)); URL.revokeObjectURL(url); };
     vid.onerror = () => { URL.revokeObjectURL(url); resolve(0); };
@@ -882,8 +875,10 @@ export default function App() {
 
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontSize: 24, fontFamily: "Georgia, serif", color: C.textMid }}>momentz</div>
-      <Spinner size={28} />
+      <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <MomentزLogo size={28} dark={false} />
+      </div>
+      <Spinner size={24} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -900,22 +895,29 @@ export default function App() {
       {/* ── GRID ── */}
       {view === "grid" && (
         <div style={{ maxWidth: 480, margin: "0 auto", height: "100vh", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "28px 20px 0", display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexShrink: 0 }}>
-            <div>
-              <div style={{ fontSize: 9, letterSpacing: "0.3em", color: C.textLight, textTransform: "uppercase", marginBottom: 3 }}>private journal</div>
-              <h1 style={{ margin: 0, fontSize: 30, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.02em", lineHeight: 1 }}>momentz</h1>
+
+          {/* Header */}
+          <div style={{ padding: "24px 20px 0", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.text, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <MomentزLogo size={22} dark={false} />
+              </div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 400, fontFamily: "Georgia, serif", color: C.text, letterSpacing: "-0.01em", lineHeight: 1 }}>Momentz</h1>
+                <div style={{ fontSize: 9, color: C.textLight, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 2 }}>Private Journal</div>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              {isOwner && <button onClick={() => setShowInvite(true)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.accent, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>+ invite</button>}
-              <button onClick={() => sb.auth.signOut()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textLight, borderRadius: 20, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>sign out</button>
+              {isOwner && <button onClick={() => setShowInvite(true)} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 4, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>+ Invite</button>}
+              <button onClick={() => sb.auth.signOut()} style={{ background: "none", border: `1px solid ${C.border}`, color: C.textLight, borderRadius: 4, padding: "6px 12px", fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase" }}>Sign Out</button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div style={{ padding: "16px 20px 0", display: "flex", flexShrink: 0 }}>
+          <div style={{ padding: "16px 20px 0", display: "flex", flexShrink: 0, borderBottom: `1px solid ${C.border}` }}>
             {TABS.map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "10px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? C.accentDark : C.border}`, color: tab === t ? C.accentDark : C.textLight, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 500 : 400, transition: "all 0.15s" }}>
-                {t === "video" ? "videos" : t === "writing" ? "writing" : "pulse"}
+              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "10px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? C.text : "transparent"}`, color: tab === t ? C.text : C.textLight, fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: tab === t ? 700 : 400, transition: "all 0.15s", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: -1 }}>
+                {t === "video" ? "Videos" : t === "writing" ? "Writing" : "Pulse"}
               </button>
             ))}
           </div>
@@ -925,36 +927,41 @@ export default function App() {
             {usedMoods.length > 0 && (
               <div style={{ padding: "10px 20px 8px", display: "flex", gap: 7, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
                 {["all", ...usedMoods].map(m => (
-                  <button key={m} onClick={() => setFilterMood(m)} style={{ background: filterMood === m ? C.accentDark : "transparent", border: `1px solid ${filterMood === m ? C.accentDark : C.border}`, color: filterMood === m ? "#fff" : C.textMid, borderRadius: 20, padding: "5px 12px", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.18s", fontFamily: "inherit" }}>
-                    {m === "all" ? "all moods" : m}
+                  <button key={m} onClick={() => setFilterMood(m)} style={{ background: filterMood === m ? C.text : "transparent", border: `1px solid ${filterMood === m ? C.text : C.border}`, color: filterMood === m ? "#fff" : C.textMid, borderRadius: 4, padding: "4px 11px", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "inherit", letterSpacing: "0.05em" }}>
+                    {m === "all" ? "ALL" : m}
                   </button>
                 ))}
               </div>
             )}
-            {camError && <div style={{ margin: "0 20px 10px", padding: 12, background: C.dangerLight, border: `1px solid ${C.danger}22`, borderRadius: 10, fontSize: 12, color: C.danger, flexShrink: 0 }}>{camError}</div>}
+            {camError && <div style={{ margin: "0 20px 10px", padding: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, borderRadius: 6, fontSize: 12, color: C.danger, flexShrink: 0 }}>{camError}</div>}
             <div style={{ flex: 1, overflowY: "auto", paddingBottom: 90 }}>
               {loadingEntries ? <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
                 : filteredEntries.length === 0 ? (
                   <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: C.accent }} /></div>
-                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>{entries.length === 0 ? "your first moment is waiting" : "no entries for this mood"}</div>
-                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the + button below to begin</div>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.text, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <MomentزLogo size={32} dark={false} />
+                    </div>
+                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>{entries.length === 0 ? "Your first moment is waiting" : "No entries for this mood"}</div>
+                    <div style={{ fontSize: 9, color: C.textLight, marginTop: 8, letterSpacing: "0.15em", textTransform: "uppercase" }}>Tap the + button below to begin</div>
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2, padding: "4px 2px" }}>
                     {filteredEntries.map((entry, i) => {
                       const moods = entry.moods || [];
                       return (
-                        <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }} style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.accentLight, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
-                          {entry.thumbnail ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 18, height: 18, borderRadius: "50%", background: C.accent }} /></div>}
-                          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(30,20,40,0.85) 0%, transparent 55%)" }} />
+                        <div key={entry.id} onClick={() => { setSwipeIndex(i); setView("swipe"); }} style={{ aspectRatio: "9/16", position: "relative", cursor: "pointer", overflow: "hidden", background: C.bgOff, animation: `fadeUp 0.3s ease ${i * 0.02}s both` }}>
+                          {entry.thumbnail ? <img src={entry.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#e8e8e8" }}>
+                                <MomentزLogo size={24} dark={true} />
+                              </div>}
+                          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%)" }} />
                           <div style={{ position: "absolute", bottom: 6, left: 6, right: 6 }}>
-                            {moods.length > 0 && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{moods[0]}{moods.length > 1 ? ` +${moods.length - 1}` : ""}</div>}
-                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)" }}>{fmtDate(entry.created_at)}</div>
+                            {moods.length > 0 && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.7)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{moods[0]}{moods.length > 1 ? ` +${moods.length - 1}` : ""}</div>}
+                            <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)", letterSpacing: "0.05em" }}>{fmtDate(entry.created_at)}</div>
                             {entry.note && <div style={{ fontSize: 7, color: "rgba(255,255,255,0.4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.note}</div>}
                           </div>
-                          {entry.duration > 0 && <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.7)" }}>{fmtDur(entry.duration)}</div>}
-                          {entry.source === "upload" && <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.45)", borderRadius: 4, padding: "2px 5px", fontSize: 7, color: "rgba(255,255,255,0.6)" }}>↑</div>}
+                          {entry.duration > 0 && <div style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.55)", borderRadius: 3, padding: "2px 5px", fontSize: 8, color: "rgba(255,255,255,0.75)", letterSpacing: "0.05em" }}>{fmtDur(entry.duration)}</div>}
+                          {entry.source === "upload" && <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.55)", borderRadius: 3, padding: "2px 5px", fontSize: 7, color: "rgba(255,255,255,0.65)" }}>↑</div>}
                         </div>
                       );
                     })}
@@ -969,30 +976,32 @@ export default function App() {
               {loadingWritings ? <div style={{ padding: 70, display: "flex", justifyContent: "center" }}><Spinner /></div>
                 : writings.length === 0 ? (
                   <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.accentLight, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✍️</div>
-                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>your first entry is waiting</div>
-                    <div style={{ fontSize: 11, color: C.textLight, marginTop: 8 }}>tap the + button below to start writing</div>
+                    <div style={{ fontSize: 36, marginBottom: 16 }}>✍️</div>
+                    <div style={{ fontSize: 16, color: C.textMid, fontFamily: "Georgia, serif", fontStyle: "italic" }}>Your first entry is waiting</div>
+                    <div style={{ fontSize: 9, color: C.textLight, marginTop: 8, letterSpacing: "0.15em", textTransform: "uppercase" }}>Tap the + button to start writing</div>
                   </div>
                 ) : (
                   <div style={{ padding: "8px 16px" }}>
                     {writings.map((w, i) => {
                       const moods = w.moods || [];
                       return (
-                        <div key={w.id} onClick={() => { setSelectedWriting(w); setView("writeView"); }} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px", marginBottom: 10, cursor: "pointer", animation: `fadeUp 0.3s ease ${i * 0.02}s both`, transition: "box-shadow 0.15s" }} onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 16px rgba(155,138,180,0.12)`} onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
+                        <div key={w.id} onClick={() => { setSelectedWriting(w); setView("writeView"); }} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px", marginBottom: 8, cursor: "pointer", animation: `fadeUp 0.3s ease ${i * 0.02}s both`, transition: "box-shadow 0.15s" }}
+                          onMouseEnter={e => e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.08)"}
+                          onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                             <div>
-                              {w.title && <div style={{ fontSize: 15, fontWeight: 500, fontFamily: "Georgia, serif", color: C.text, marginBottom: 3 }}>{w.title}</div>}
-                              <div style={{ fontSize: 10, color: C.textLight }}>{fmtDate(w.created_at)}</div>
+                              {w.title && <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "Georgia, serif", color: C.text, marginBottom: 3 }}>{w.title}</div>}
+                              <div style={{ fontSize: 9, color: C.textLight, letterSpacing: "0.1em", textTransform: "uppercase" }}>{fmtDate(w.created_at)}</div>
                             </div>
                             {moods.length > 0 && (
                               <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "50%" }}>
-                                {moods.slice(0, 2).map(m => <div key={m} style={{ fontSize: 10, color: C.accentDark, background: C.accentLight, borderRadius: 20, padding: "3px 8px", whiteSpace: "nowrap" }}>{m}</div>)}
-                                {moods.length > 2 && <div style={{ fontSize: 10, color: C.textLight }}>+{moods.length - 2}</div>}
+                                {moods.slice(0, 2).map(m => <div key={m} style={{ fontSize: 9, color: "#fff", background: C.text, borderRadius: 4, padding: "3px 8px", whiteSpace: "nowrap", letterSpacing: "0.04em" }}>{m}</div>)}
+                                {moods.length > 2 && <div style={{ fontSize: 9, color: C.textLight }}>+{moods.length - 2}</div>}
                               </div>
                             )}
                           </div>
-                          <div style={{ fontSize: 13, color: C.textMid, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{w.body}</div>
-                          <div style={{ marginTop: 8, fontSize: 10, color: C.textLight }}>{w.word_count || 0} words</div>
+                          <div style={{ fontSize: 13, color: C.textMid, lineHeight: 1.65, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{w.body}</div>
+                          <div style={{ marginTop: 8, fontSize: 9, color: C.textLight, letterSpacing: "0.1em", textTransform: "uppercase" }}>{w.word_count || 0} words</div>
                         </div>
                       );
                     })}
@@ -1005,15 +1014,15 @@ export default function App() {
           {tab === "pulse" && <PulseTab user={user} />}
 
           {/* FAB */}
-          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", pointerEvents: "none", zIndex: 100 }}>
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", padding: "16px 0 28px", pointerEvents: "none", zIndex: 100, background: "linear-gradient(to top, #fff 60%, transparent)" }}>
             <div style={{ position: "relative", pointerEvents: "all" }}>
               {showFABMenu && tab === "video" && (
                 <div style={{ position: "absolute", bottom: 72, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", animation: "fadeUp 0.2s ease" }}>
-                  <button onClick={openRecorder} style={{ background: C.bgCard, border: `1px solid ${C.border}`, color: C.text, borderRadius: 24, padding: "10px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(155,138,180,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span>⏺</span> record now
+                  <button onClick={openRecorder} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "10px 20px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>
+                    ⏺ Record Now
                   </button>
-                  <button onClick={openUpload} style={{ background: C.bgCard, border: `1px solid ${C.border}`, color: C.text, borderRadius: 24, padding: "10px 20px", fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(155,138,180,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span>↑</span> upload from camera roll
+                  <button onClick={openUpload} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, padding: "10px 20px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>
+                    ↑ Upload Video
                   </button>
                 </div>
               )}
@@ -1021,7 +1030,7 @@ export default function App() {
                 <button onClick={() => {
                   if (tab === "writing") { setShowFABMenu(false); setView("writeNew"); }
                   else setShowFABMenu(p => !p);
-                }} style={{ background: showFABMenu ? C.text : C.accentDark, border: "none", borderRadius: 50, width: 60, height: 60, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: `0 4px 24px ${C.accent}55`, transition: "all 0.2s", fontSize: showFABMenu ? 22 : 26, color: "#fff" }}>
+                }} style={{ background: C.text, border: "none", borderRadius: 50, width: 56, height: 56, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 4px 20px rgba(0,0,0,0.25)", transition: "all 0.2s", color: "#fff", fontSize: showFABMenu ? 22 : 24 }}>
                   {tab === "writing" ? "✍" : (showFABMenu ? "×" : "+")}
                 </button>
               )}
@@ -1040,8 +1049,8 @@ export default function App() {
             </div>
           ))}
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, padding: "16px 20px", display: "flex", justifyContent: "space-between", background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)", zIndex: 10 }}>
-            <button onClick={() => setView("grid")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← grid</button>
-            <button onClick={() => setShowDelete(filteredEntries[swipeIndex])} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "rgba(255,255,255,0.7)", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>delete</button>
+            <button onClick={() => setView("grid")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 4, padding: "7px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>← Grid</button>
+            <button onClick={() => setShowDelete(filteredEntries[swipeIndex])} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "rgba(255,255,255,0.7)", borderRadius: 4, padding: "7px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase" }}>Delete</button>
           </div>
           {filteredEntries.length > 1 && (
             <div style={{ position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, zIndex: 10 }}>
@@ -1051,8 +1060,8 @@ export default function App() {
             </div>
           )}
           <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 16, zIndex: 10 }}>
-            {swipeIndex > 0 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↑ newer</div>}
-            {swipeIndex < filteredEntries.length - 1 && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em" }}>↓ older</div>}
+            {swipeIndex > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", textTransform: "uppercase" }}>↑ Newer</div>}
+            {swipeIndex < filteredEntries.length - 1 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.15em", textTransform: "uppercase" }}>↓ Older</div>}
           </div>
         </div>
       )}
@@ -1061,11 +1070,11 @@ export default function App() {
       {view === "record" && (
         <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 }}>
-            <button onClick={discard} style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", borderRadius: 20, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>✕ cancel</button>
+            <button onClick={discard} style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", borderRadius: 4, padding: "6px 14px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase" }}>✕ Cancel</button>
             {recording && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(210,45,45,0.85)", borderRadius: 20, padding: "5px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(200,40,40,0.85)", borderRadius: 4, padding: "5px 12px" }}>
                 <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff", animation: "blink 1s infinite" }} />
-                <span style={{ fontSize: 12, color: "#fff", fontFamily: "inherit" }}>{fmtDur(elapsed)}</span>
+                <span style={{ fontSize: 12, color: "#fff", fontFamily: "inherit", letterSpacing: "0.08em" }}>{fmtDur(elapsed)}</span>
               </div>
             )}
           </div>
@@ -1075,21 +1084,21 @@ export default function App() {
             {uploadMode === "upload" && !previewBlob && (
               <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "#0a0a0a" }}>
                 <div style={{ fontSize: 48 }}>📁</div>
-                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>tap to choose a video</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>max 50MB · compress large files first</div>
-                <button onClick={() => fileInputRef.current?.click()} style={{ background: C.accentDark, border: "none", color: "#fff", borderRadius: 24, padding: "12px 28px", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>browse camera roll</button>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Select a Video</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>Max 50MB · Compress large files first</div>
+                <button onClick={() => fileInputRef.current?.click()} style={{ background: "#fff", border: "none", color: "#111", borderRadius: 4, padding: "12px 28px", fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>Browse Camera Roll</button>
               </div>
             )}
             {countdown !== null && <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", fontSize: 100, fontFamily: "Georgia, serif", color: "rgba(255,255,255,0.9)", animation: "popIn 0.7s ease" }}>{countdown}</div>}
           </div>
-          <div style={{ background: C.bg, borderRadius: "20px 20px 0 0", padding: "16px 20px 32px", flexShrink: 0 }}>
+          <div style={{ background: C.bg, borderRadius: "16px 16px 0 0", padding: "16px 20px 32px", flexShrink: 0 }}>
             {uploading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "8px 0" }}>
-                <div style={{ fontSize: 13, color: C.textMid }}>uploading your moment...</div>
-                <div style={{ width: "100%", height: 4, background: C.accentLight, borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${uploadProgress}%`, background: C.accentDark, borderRadius: 4, transition: "width 0.3s" }} />
+                <div style={{ fontSize: 11, color: C.textMid, letterSpacing: "0.12em", textTransform: "uppercase" }}>Uploading...</div>
+                <div style={{ width: "100%", height: 3, background: C.bgOff, borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${uploadProgress}%`, background: C.text, borderRadius: 2, transition: "width 0.3s" }} />
                 </div>
-                <div style={{ fontSize: 11, color: C.textLight }}>{uploadProgress}%</div>
+                <div style={{ fontSize: 10, color: C.textLight, letterSpacing: "0.1em" }}>{uploadProgress}%</div>
               </div>
             ) : !previewBlob ? (
               uploadMode === "record" && (
@@ -1097,11 +1106,11 @@ export default function App() {
                   <MoodPicker value={selectedMoods} onChange={setSelectedMoods} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
                   <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
                     {!recording
-                      ? <button onClick={startCountdown} style={{ width: 64, height: 64, borderRadius: "50%", background: C.accentDark, border: `4px solid ${C.accentLight}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 24px ${C.accent}44`, transition: "transform 0.15s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+                      ? <button onClick={startCountdown} style={{ width: 64, height: 64, borderRadius: "50%", background: C.text, border: "4px solid #e8e8e8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 24px rgba(0,0,0,0.15)", transition: "transform 0.15s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
                           <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
                         </button>
-                      : <button onClick={stopRecording} style={{ width: 64, height: 64, borderRadius: "50%", background: C.rec, border: "4px solid rgba(224,91,115,0.3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "recPulse 1.6s ease infinite" }}>
-                          <div style={{ width: 20, height: 20, borderRadius: 4, background: "#fff" }} />
+                      : <button onClick={stopRecording} style={{ width: 64, height: 64, borderRadius: "50%", background: C.rec, border: "4px solid rgba(200,40,40,0.2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "recPulse 1.6s ease infinite" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: 3, background: "#fff" }} />
                         </button>
                     }
                   </div>
@@ -1109,15 +1118,16 @@ export default function App() {
               )
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                <div style={{ fontSize: 12, color: C.textMid, textAlign: "center" }}>{uploadMode === "upload" ? "looks good? add tags then save." : "happy with this?"}</div>
+                <div style={{ fontSize: 10, color: C.textMid, textAlign: "center", letterSpacing: "0.1em", textTransform: "uppercase" }}>{uploadMode === "upload" ? "Add Tags & Save" : "Happy With This?"}</div>
                 <MoodPicker value={selectedMoods} onChange={setSelectedMoods} customMoods={customMoods} onAddCustomMood={m => setCustomMoods(p => [...p, m])} />
-                <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="a note to your future self... (optional)" rows={2} style={{ background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px", color: C.text, fontSize: 12, fontFamily: "inherit", resize: "none", outline: "none" }} />
+                <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="A note to your future self..." rows={2}
+                  style={{ background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 6, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none" }} />
                 <div style={{ display: "flex", gap: 8 }}>
                   {uploadMode === "record"
-                    ? <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); }} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>re-record</button>
-                    : <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); fileInputRef.current?.click(); }} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>choose different</button>
+                    ? <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); }} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.bgOff, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>Re-record</button>
+                    : <button onClick={() => { if (previewURL) URL.revokeObjectURL(previewURL); setPreviewBlob(null); setPreviewURL(null); fileInputRef.current?.click(); }} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.bgOff, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 11, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>Choose Different</button>
                   }
-                  <button onClick={saveVideo} style={{ flex: 2, padding: "11px", borderRadius: 12, background: C.accentDark, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>save to momentz</button>
+                  <button onClick={saveVideo} style={{ flex: 2, padding: "11px", borderRadius: 6, background: C.text, border: "none", color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Save to Momentz</button>
                 </div>
               </div>
             )}
@@ -1127,15 +1137,15 @@ export default function App() {
 
       {/* DELETE */}
       {showDelete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(30,20,40,0.6)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
-          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.dangerLight, margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🗑</div>
-            <div style={{ fontSize: 16, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this {showDelete._type === "writing" ? "entry" : "moment"}?</div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24 }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 28, maxWidth: 300, width: "100%", textAlign: "center", animation: "popIn 0.22s ease" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗑</div>
+            <div style={{ fontSize: 15, fontFamily: "Georgia, serif", color: C.text, marginBottom: 8 }}>Delete this {showDelete._type === "writing" ? "entry" : "moment"}?</div>
             <div style={{ fontSize: 12, color: C.textLight, marginBottom: 22, lineHeight: 1.6 }}>This will be removed from your journal forever.</div>
             <div style={{ display: "flex", gap: 9 }}>
-              <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.bgInput, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>keep it</button>
-              <button onClick={() => showDelete._type === "writing" ? deleteWriting(showDelete) : deleteEntry(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 12, background: C.dangerLight, border: `1px solid ${C.danger}33`, color: C.danger, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {deleting ? <Spinner size={15} color={C.danger} /> : "delete"}
+              <button onClick={() => setShowDelete(null)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.bgOff, border: `1px solid ${C.border}`, color: C.textMid, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Keep It</button>
+              <button onClick={() => showDelete._type === "writing" ? deleteWriting(showDelete) : deleteEntry(showDelete)} disabled={deleting} style={{ flex: 1, padding: "11px", borderRadius: 6, background: C.danger, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {deleting ? <Spinner size={15} color="#fff" /> : "Delete"}
               </button>
             </div>
           </div>
@@ -1145,15 +1155,15 @@ export default function App() {
       {showInvite && <InvitePanel onClose={() => setShowInvite(false)} />}
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { display: none; }
-        textarea::placeholder, input::placeholder { color: ${C.textLight}; }
+        textarea::placeholder, input::placeholder { color: #bbb; }
         video { outline: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
-        @keyframes recPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(224,91,115,0.4); } 50% { box-shadow: 0 0 0 14px rgba(224,91,115,0); } }
+        @keyframes recPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(200,40,40,0.4); } 50% { box-shadow: 0 0 0 14px rgba(200,40,40,0); } }
         @keyframes popIn { from { transform: scale(0.92) translateY(8px); opacity:0; } to { transform: scale(1) translateY(0); opacity:1; } }
         @keyframes slideUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
       `}</style>
