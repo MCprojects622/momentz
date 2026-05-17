@@ -1,15 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
-  <circle cx="30" cy="30" r="30" fill="#ffffff" stroke="#111111" stroke-width="2"/>
-  <clipPath id="c"><circle cx="30" cy="30" r="29"/></clipPath>
+  <clipPath id="c"><circle cx="30" cy="30" r="30"/></clipPath>
   <g clip-path="url(#c)">
-    <rect x="2" y="2" width="56" height="56" fill="#cce8f7"/>
+    <rect x="0" y="0" width="60" height="60" fill="#cce8f7"/>
     <circle cx="48" cy="12" r="7" fill="#f7d44c"/>
-    <rect x="2" y="34" width="56" height="26" fill="#7aaa87"/>
-    <path d="M4 40 Q30 34 56 40" stroke="#7ab8d4" stroke-width="4" fill="none" stroke-linecap="round"/>
-    <ellipse cx="6" cy="34" rx="6" ry="8" fill="#5a8a46"/>
-    <ellipse cx="54" cy="35" rx="6" ry="7" fill="#5a8a46"/>
-    <ellipse cx="28" cy="43" rx="4" ry="2.5" fill="#c4a070"/>
-    <ellipse cx="38" cy="42" rx="3" ry="2" fill="#a08060"/>
+    <rect x="0" y="34" width="60" height="26" fill="#7aaa87"/>
+    <rect x="0" y="40" width="60" height="20" fill="#6a9a77"/>
+    <path d="M2 42 Q30 36 58 42" stroke="#7ab8d4" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="5" cy="34" rx="7" ry="9" fill="#5a8a46"/>
+    <ellipse cx="55" cy="35" rx="6" ry="8" fill="#5a8a46"/>
+    <ellipse cx="26" cy="45" rx="4" ry="2.5" fill="#c4a070"/>
+    <ellipse cx="38" cy="44" rx="3" ry="2" fill="#a08060"/>
   </g>
-  <circle cx="30" cy="30" r="30" fill="none" stroke="#111111" stroke-width="2"/>
 </svg>
