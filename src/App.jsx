@@ -60,8 +60,8 @@ function generateCode() {
 // ── Logo: Two overlapping circles with play ────────────────────────────────
 const MomentزLogo = ({ size = 36, dark = true }) => (
   <svg width={size} height={size} viewBox="0 0 60 60">
-    <circle cx="30" cy="30" r="28" fill={dark ? "#ffffff" : "#111111"} stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
-    <clipPath id="mc"><circle cx="30" cy="30" r="26"/></clipPath>
+    <circle cx="30" cy="30" r="30" fill={dark ? "#ffffff" : "#111111"} stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
+   <clipPath id="mc"><circle cx="30" cy="30" r="29"/></clipPath>
     <g clipPath="url(#mc)">
       <rect x="2" y="2" width="56" height="56" fill="#cce8f7"/>
       <circle cx="48" cy="12" r="7" fill="#f7d44c"/>
@@ -72,7 +72,7 @@ const MomentزLogo = ({ size = 36, dark = true }) => (
       <ellipse cx="28" cy="43" rx="4" ry="2.5" fill="#c4a070"/>
       <ellipse cx="38" cy="42" rx="3" ry="2" fill="#a08060"/>
     </g>
-    <circle cx="30" cy="30" r="28" fill="none" stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
+    <circle cx="30" cy="30" r="30" fill="none" stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
   </svg>
 );
 const Spinner = ({ size = 22, color = "#111" }) => (
