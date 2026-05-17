@@ -58,18 +58,23 @@ function generateCode() {
 }
 
 // ── Logo: Two overlapping circles with play ────────────────────────────────
-const MomentزLogo = ({ size = 36, dark = true }) => {
-  const fill = dark ? "#111" : "#fff";
-  const bg = dark ? "#fff" : "#111";
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60">
-      <circle cx="22" cy="30" r="16" fill={fill} opacity="0.85"/>
-      <circle cx="38" cy="30" r="16" fill={fill} opacity="0.85"/>
-      <polygon points="26,23 26,37 40,30" fill={bg}/>
-    </svg>
-  );
-};
-
+const MomentزLogo = ({ size = 36, dark = true }) => (
+  <svg width={size} height={size} viewBox="0 0 60 60">
+    <circle cx="30" cy="30" r="28" fill={dark ? "#ffffff" : "#111111"} stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
+    <clipPath id="mc"><circle cx="30" cy="30" r="26"/></clipPath>
+    <g clipPath="url(#mc)">
+      <rect x="2" y="2" width="56" height="56" fill="#cce8f7"/>
+      <circle cx="48" cy="12" r="7" fill="#f7d44c"/>
+      <rect x="2" y="34" width="56" height="26" fill="#7aaa87"/>
+      <path d="M4 40 Q30 34 56 40" stroke="#7ab8d4" strokeWidth="4" fill="none" strokeLinecap="round"/>
+      <ellipse cx="6" cy="34" rx="6" ry="8" fill="#5a8a46"/>
+      <ellipse cx="54" cy="35" rx="6" ry="7" fill="#5a8a46"/>
+      <ellipse cx="28" cy="43" rx="4" ry="2.5" fill="#c4a070"/>
+      <ellipse cx="38" cy="42" rx="3" ry="2" fill="#a08060"/>
+    </g>
+    <circle cx="30" cy="30" r="28" fill="none" stroke={dark ? "#111111" : "#ffffff"} strokeWidth="2"/>
+  </svg>
+);
 const Spinner = ({ size = 22, color = "#111" }) => (
   <div style={{ width: size, height: size, border: `2px solid #e8e8e8`, borderTop: `2px solid ${color}`, borderRadius: "50%", animation: "spin 0.75s linear infinite", flexShrink: 0 }} />
 );
