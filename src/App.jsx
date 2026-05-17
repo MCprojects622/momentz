@@ -92,9 +92,9 @@ function MoodPicker({ value = [], onChange, customMoods = [], onAddCustomMood })
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {allMoods.map(m => (
           <button key={m} onClick={() => toggle(m)} style={{
-            background: value.includes(m) ? C.text : C.bgInput,
-            border: `1px solid ${value.includes(m) ? C.text : C.border}`,
-            color: value.includes(m) ? "#fff" : C.textMid,
+            background: value.includes(m) ? (value.indexOf(m) % 2 === 0 ? "#e8a0a8" : "#8fba9a") : C.bgInput,
+border: `1px solid ${value.includes(m) ? "transparent" : C.border}`,
+color: value.includes(m) ? "#fff" : C.textMid,
             borderRadius: 4, padding: "5px 11px", fontSize: 11,
             cursor: "pointer", fontFamily: "inherit", transition: "all 0.12s",
             letterSpacing: "0.02em",
