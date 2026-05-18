@@ -746,7 +746,15 @@ export default function App() {
     mr.onstop = () => { const blob = new Blob(chunksRef.current, { type: mimeType }); setPreviewBlob(blob); setPreviewURL(URL.createObjectURL(blob)); };
     mr.start(); mrRef.current = mr;
     setRecording(true); setElapsed(0);
-    elapsedRef.current = setInterval(() => setElapsed(p => p + 1), 1000);
+   elapsedRef.current = setInterval(() => {
+  setElapsed(p => {
+    if (p + 1 >= 180) {
+      stopRecording();
+      return 180;
+    }
+    return p + 1;
+  });
+}, 1000);
   };
 
   const stopRecording = () => {
